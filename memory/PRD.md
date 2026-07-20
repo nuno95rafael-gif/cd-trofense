@@ -39,14 +39,28 @@ Plataforma web (React + FastAPI + MongoDB) para o departamento médico do CD Tro
 - [x] Dark/Light mode
 - [x] PT-PT em toda a interface
 
-## Backlog priorizado
-- **P1** Import Excel de pesagens (xlsx → parse → POST em massa)
+## Implementado — 2026-07-20
+- [x] Import de pesagens via Excel (openpyxl backend + UI upload em `WeighinsPanel`)
+- [x] Migração histórica: 18 atletas importados a partir de `trofense_backup_2026-07-15.json` (via `scripts/import_json.py`)
+- [x] Fórmulas exatas alinhadas 1:1 com `trofense_composicao_corporal.jsx` (validado numericamente)
+- [x] Remoção do "Σ 7 pregas" (mantido apenas Σ 8)
+- [x] Nova Avaliação em Dialog modal (a partir do perfil do atleta)
+- [x] Fotos por Avaliação — 3 slots fixos (Frente/Perfil/Costas) com crop/rotação/zoom via `react-easy-crop` (`PhotoCropDialog.jsx`)
+- [x] Upload de fotos ligado a `evaluation_id` (backend suporta na `POST /api/athletes/{aid}/photos`)
+- [x] Aba `Fotos` com selector de avaliação + slots recortáveis/substituíveis
+- [x] Histórico de avaliações vertical com pregas/perímetros um abaixo do outro (`EvaluationHistoryRow`)
+- [x] Fix: crash de compilação em `EvaluationForm.jsx` (fragmento JSX duplicado removido)
+- [x] Testes E2E: 100% pass (login → dashboard → perfil → nova avaliação → guardar → histórico → todas as abas)
+
+## Backlog priorizado (atualizado)
 - **P1** Export Excel nativo (com múltiplas folhas: resumo + histórico) usando `xlsx`
-- **P1** Página HTML estática read-only para partilha
-- **P2** Restore de backup JSON (importar ficheiro)
-- **P2** Somatório 7/8 pregas exibido junto aos resultados
-- **P2** Slider de comparação de fotos com scrubber
+- **P1** UI de Restore de backup JSON (endpoint + página)
+- **P1** Alinhar visual com mockup do utilizador: avatar redondo com iniciais (gradient), Comparativo em tabela, histórico em tabela com colunas e badges coloridos, CTA "Registar avaliação" em accent dourado
+- **P2** Foto de perfil separada das fotos de avaliação
+- **P2** Estados de peso-alvo granulares (Prioritário / Em progresso / Quase lá / Atingido)
+- **P2** Slider de comparação de fotos com scrubber (before/after)
 - **P2** Auditoria: exibir criado_por + data em avaliações
+- **P2** A11y: DialogDescription em modais Radix
 - **P3** Notificações quando atleta atinge objetivo ou sai de faixa
 - **P3** Integração com balanças de bioimpedância
 - **P3** Export PDF nativo dos relatórios individuais
