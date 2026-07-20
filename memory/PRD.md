@@ -60,13 +60,12 @@ Plataforma web (React + FastAPI + MongoDB) para o departamento médico do CD Tro
 ## Backlog priorizado (atualizado)
 - **P1** Export Excel nativo (com múltiplas folhas: resumo + histórico) usando `xlsx`
 - **P1** UI de Restore de backup JSON (endpoint + página)
-- **P1** Alinhar visual com mockup do utilizador: avatar redondo com iniciais (gradient), Comparativo em tabela, histórico em tabela com colunas e badges coloridos, CTA "Registar avaliação" em accent dourado
 - **P2** Slider de comparação de fotos com scrubber (before/after)
-- **P2** Auditoria: exibir criado_por + data em avaliações
 - **P2** A11y: DialogDescription em modais Radix
 - **P3** Notificações quando atleta atinge objetivo ou sai de faixa
 - **P3** Integração com balanças de bioimpedância
 - **P3** App mobile companion
+- **P3** Envio de relatório PDF individual por email (Resend)
 os de Equipa passou a preto (removido `text-primary`)
 - [x] Testes E2E: 100% pass em duas iterações (fotos + objetivos de equipa) + smoke visual da identidade renovada + upload de foto de perfil + geração de PDF individual verificada por análise IA
 

@@ -28,54 +28,60 @@ async function getLogoDataUrl() {
   return _logoDataUrl;
 }
 
-/** Cabeçalho comum em todas as páginas do PDF (com emblema oficial). */
+/** Cabeçalho comum em todas as páginas do PDF (com emblema oficial).
+ *  Design: faixa navy sólida + linha fina vermelha + linha fina amarela como accent
+ *  (o navy é a cor institucional predominante da app; vermelho e amarelo funcionam como acentos).
+ */
 function drawHeader(doc, subtitle, logoData) {
   const pageW = doc.internal.pageSize.getWidth();
-  // Faixa vermelha institucional
+  // Faixa navy sólida (cor principal do cabeçalho)
+  doc.setFillColor(...CLUB_NAVY);
+  doc.rect(0, 0, pageW, 24, "F");
+  // Linha vermelha fina (accent)
   doc.setFillColor(...CLUB_RED);
-  doc.rect(0, 0, pageW, 22, "F");
-  // Faixa amarela fina abaixo
+  doc.rect(0, 24, pageW, 1.2, "F");
+  // Linha amarela ultra-fina abaixo (assinatura visual do clube)
   doc.setFillColor(...CLUB_YELLOW);
-  doc.rect(0, 22, pageW, 1.2, "F");
+  doc.rect(0, 25.2, pageW, 0.6, "F");
+
   // Emblema no canto (se disponível)
   if (logoData) {
-    try { doc.addImage(logoData, "PNG", 8, 3.5, 15, 15); } catch { /* ignore */ }
+    try { doc.addImage(logoData, "PNG", 10, 4, 16, 16); } catch { /* ignore */ }
   }
   // Título
   doc.setTextColor(255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text("CLUBE DESPORTIVO TROFENSE", 27, 10);
+  doc.text("CLUBE DESPORTIVO TROFENSE", 30, 11);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.text("Departamento Médico · Composição Corporal", 27, 15.5);
+  doc.setFontSize(8);
+  doc.setTextColor(255, 255, 255);
+  doc.text("Departamento Médico · Composição Corporal", 30, 17);
   // Data topo direito
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   const now = new Date().toLocaleString("pt-PT", { dateStyle: "long", timeStyle: "short" });
-  doc.text(now, pageW - 8, 12, { align: "right" });
-  // Subtítulo
+  doc.text(now, pageW - 10, 13, { align: "right" });
+
+  // Subtítulo (fora da faixa, com respiração)
   doc.setTextColor(...CLUB_NAVY);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text(subtitle, 14, 33);
-  // Linha decorativa navy
-  doc.setDrawColor(...CLUB_NAVY);
-  doc.setLineWidth(0.4);
-  doc.line(14, 36, pageW - 14, 36);
+  doc.setFontSize(18);
+  doc.text(subtitle, 14, 38);
 }
 
-/** Rodapé com paginação + assinatura do clube. */
+/** Rodapé com paginação + assinatura do clube. Fino e discreto. */
 function drawFooter(doc) {
   const pages = doc.getNumberOfPages();
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
-    doc.setDrawColor(...CLUB_RED);
-    doc.setLineWidth(0.6);
+    // Linha navy suave no rodapé
+    doc.setDrawColor(...CLUB_NAVY);
+    doc.setLineWidth(0.3);
     doc.line(14, pageH - 12, pageW - 14, pageH - 12);
     doc.setFontSize(7.5);
-    doc.setTextColor(120);
+    doc.setTextColor(140);
     doc.setFont("helvetica", "italic");
     doc.text("Desde 1930 · história, paixão e glória", 14, pageH - 6);
     doc.setFont("helvetica", "normal");
@@ -118,16 +124,16 @@ export async function exportDashboardPdf(athletes, stats) {
     ["Atenção / Alto", stats ? `${stats.atencao} / ${stats.alto}` : "—"],
   ];
   autoTable(doc, {
-    startY: 40,
-    theme: "grid",
+    startY: 44,
+    theme: "plain",
     head: [kpis.map((k) => k[0])],
     body: [kpis.map((k) => k[1])],
-    styles: { halign: "center", fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 8 },
-    bodyStyles: { fontStyle: "bold", fontSize: 12 },
+    styles: { halign: "center", fontSize: 8, cellPadding: 3, lineColor: [230, 230, 230], lineWidth: 0.1 },
+    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5, cellPadding: 2.5 },
+    bodyStyles: { fontStyle: "bold", fontSize: 13, textColor: CLUB_NAVY, cellPadding: 4 },
   });
 
-  // Tabela do plantel
+  // Tabela do plantel — cabeçalho navy, respiração generosa, alternância suave
   const head = [["Nome", "Posição", "Idade", "Alt. (cm)", "Peso (kg)", "% MG (R&W)", "Σ 8 pregas", "% MM", "MM/MG", "IMC"]];
   const body = athletes.map((a) => {
     const m = a.last_metrics || {};
@@ -148,12 +154,13 @@ export async function exportDashboardPdf(athletes, stats) {
   autoTable(doc, {
     head,
     body,
-    startY: doc.lastAutoTable.finalY + 6,
-    theme: "striped",
-    styles: { fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: CLUB_RED, textColor: 255, fontSize: 9 },
+    startY: doc.lastAutoTable.finalY + 8,
+    theme: "plain",
+    styles: { fontSize: 9, cellPadding: 3, lineColor: [235, 235, 235], lineWidth: 0.15 },
+    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 8.5, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [248, 249, 251] },
     columnStyles: {
-      0: { fontStyle: "bold", cellWidth: 45 },
+      0: { fontStyle: "bold", cellWidth: 45, textColor: CLUB_NAVY },
       2: { halign: "center" },
       3: { halign: "center" },
       4: { halign: "center" },
@@ -163,12 +170,11 @@ export async function exportDashboardPdf(athletes, stats) {
       8: { halign: "center" },
       9: { halign: "center" },
     },
-    // Colorir células com base na banda
+    // Colorir células com base na banda (só o texto — evita blocos de cor)
     didParseCell: (data) => {
       const cell = data.cell.raw;
       if (data.section === "body" && cell && typeof cell === "object" && cell.band) {
         const [r, g, b] = bandRgb(cell.band);
-        data.cell.styles.fillColor = [r, g, b, 0.15];
         data.cell.styles.textColor = [r, g, b];
         data.cell.styles.fontStyle = "bold";
       }
@@ -196,13 +202,13 @@ export async function exportTeamGoalsPdf(rows, counts) {
     ["Total", (counts.prioritario ?? 0) + (counts.em_progresso ?? 0) + (counts.quase_la ?? 0) + (counts.atingido ?? 0) + (counts.sem_objetivo ?? 0) + (counts.sem_dados ?? 0)],
   ];
   autoTable(doc, {
-    startY: 40,
-    theme: "grid",
+    startY: 44,
+    theme: "plain",
     head: [summary.map((k) => k[0])],
     body: [summary.map((k) => String(k[1] ?? 0))],
-    styles: { halign: "center", fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 8 },
-    bodyStyles: { fontStyle: "bold", fontSize: 12 },
+    styles: { halign: "center", fontSize: 8, cellPadding: 3, lineColor: [230, 230, 230], lineWidth: 0.1 },
+    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5, cellPadding: 2.5 },
+    bodyStyles: { fontStyle: "bold", fontSize: 14, cellPadding: 5, textColor: CLUB_NAVY },
     didParseCell: (data) => {
       if (data.section !== "body") return;
       const labelRow = summary.map((s) => s[0]);
@@ -386,56 +392,68 @@ export async function exportAthletePdf(athlete, evals, weighins) {
   } catch { /* ignore */ }
 
   // Bloco identificação: avatar + dados
-  const cardY = 42;
-  const cardH = 44;
+  const cardY = 46;
+  const cardH = 46;
+  // Rectângulo com borda subtil e canto superior esquerdo com acento vermelho
   doc.setDrawColor(230);
   doc.setLineWidth(0.3);
   doc.rect(14, cardY, pageW - 28, cardH);
-  // Avatar
+  doc.setFillColor(...CLUB_RED);
+  doc.rect(14, cardY, 3, cardH, "F"); // barra vermelha vertical à esquerda
+  // Avatar (com anel navy)
+  const avX = 22, avY = cardY + 4, avSize = 38;
   if (profileDataUrl) {
-    try { doc.addImage(profileDataUrl, "JPEG", 18, cardY + 4, 36, 36); } catch { /* ignore */ }
+    try { doc.addImage(profileDataUrl, "JPEG", avX, avY, avSize, avSize); } catch { /* ignore */ }
   } else {
-    doc.setFillColor(220);
-    doc.circle(36, cardY + 22, 18, "F");
-    doc.setTextColor(255);
-    doc.setFontSize(20);
+    doc.setFillColor(230, 232, 236);
+    doc.rect(avX, avY, avSize, avSize, "F");
+    doc.setTextColor(...CLUB_NAVY);
+    doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
     const initials = (athlete.nome || "").split(/\s+/).map((s) => s[0]).slice(0, 2).join("").toUpperCase();
-    doc.text(initials || "?", 36, cardY + 26, { align: "center" });
+    doc.text(initials || "?", avX + avSize / 2, avY + avSize / 2 + 3, { align: "center" });
   }
   // Dados à direita do avatar
-  const infoX = 62;
+  const infoX = avX + avSize + 8;
   doc.setTextColor(...CLUB_NAVY);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text(athlete.nome || "—", infoX, cardY + 12);
+  doc.setFontSize(20);
+  doc.text(athlete.nome || "—", infoX, cardY + 14);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
-  doc.setTextColor(80);
+  doc.setTextColor(90);
   const meta = [
     athlete.posicao || null,
     athlete.sexo === "M" ? "Masculino" : "Feminino",
     athlete.idade != null ? `${athlete.idade} anos` : null,
     athlete.altura_cm != null ? `${athlete.altura_cm} cm` : null,
     athlete.etnia ? athlete.etnia : null,
-  ].filter(Boolean).join(" · ");
-  doc.text(meta, infoX, cardY + 18);
+  ].filter(Boolean).join("  ·  ");
+  doc.text(meta, infoX, cardY + 21);
 
   const last = evals[evals.length - 1];
   const first = evals[0];
   if (last) {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(...CLUB_RED);
-    doc.text("ÚLTIMA AVALIAÇÃO", infoX, cardY + 26);
+    doc.text("ÚLTIMA AVALIAÇÃO", infoX, cardY + 32);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setTextColor(60);
-    doc.text(new Date(last.date).toLocaleDateString("pt-PT"), infoX, cardY + 31);
+    doc.text(new Date(last.date).toLocaleDateString("pt-PT", { day: "2-digit", month: "long", year: "numeric" }), infoX, cardY + 38);
   }
 
+  // Título da secção KPIs
+  const kpiY = cardY + cardH + 10;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...CLUB_NAVY);
+  doc.text("INDICADORES · Última avaliação", 14, kpiY - 3);
+  doc.setDrawColor(...CLUB_NAVY);
+  doc.setLineWidth(0.4);
+  doc.line(14, kpiY - 1.5, 70, kpiY - 1.5);
   // KPIs (grelha 4x2 abaixo)
-  const kpiY = cardY + cardH + 6;
   const kpis = last ? [
     ["Peso", `${last.peso_kg} kg`],
     ["% MG (R&W)", `${last.metrics?.rw ?? "—"}%`],
@@ -449,21 +467,29 @@ export async function exportAthletePdf(athlete, evals, weighins) {
   if (kpis.length) {
     autoTable(doc, {
       startY: kpiY,
-      theme: "grid",
+      theme: "plain",
       head: [kpis.map((k) => k[0])],
       body: [kpis.map((k) => k[1])],
-      styles: { halign: "center", fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5 },
-      bodyStyles: { fontStyle: "bold", fontSize: 10 },
+      styles: { halign: "center", fontSize: 7.5, cellPadding: 3, lineColor: [235, 235, 235], lineWidth: 0.15 },
+      headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7, cellPadding: 2 },
+      bodyStyles: { fontStyle: "bold", fontSize: 11, cellPadding: 4, textColor: CLUB_NAVY },
       margin: { left: 14, right: 14 },
     });
   }
 
+  // Título da secção métodos
+  const methY = (doc.lastAutoTable?.finalY ?? kpiY) + 10;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...CLUB_NAVY);
+  doc.text("MÉTODOS DE CÁLCULO · % Massa Gorda", 14, methY - 3);
+  doc.setDrawColor(...CLUB_NAVY);
+  doc.line(14, methY - 1.5, 80, methY - 1.5);
   // Comparativo entre métodos
   if (last?.metrics) {
     autoTable(doc, {
-      startY: (doc.lastAutoTable?.finalY ?? kpiY) + 4,
-      theme: "grid",
+      startY: methY,
+      theme: "plain",
       head: [["Reilly & Wallace", "Jackson-Pollock 7", "Evans 7", "Evans 3", "Withers"]],
       body: [[
         `${last.metrics.rw ?? "—"}%`,
@@ -472,23 +498,35 @@ export async function exportAthletePdf(athlete, evals, weighins) {
         `${last.metrics.evans3 ?? "—"}%`,
         `${last.metrics.withers ?? "—"}%`,
       ]],
-      styles: { halign: "center", fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: CLUB_RED, textColor: 255, fontSize: 8 },
-      bodyStyles: { fontStyle: "bold", fontSize: 10 },
+      styles: { halign: "center", fontSize: 8, cellPadding: 3, lineColor: [235, 235, 235], lineWidth: 0.15 },
+      headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5, cellPadding: 2 },
+      bodyStyles: { fontStyle: "bold", fontSize: 11, cellPadding: 4, textColor: CLUB_NAVY },
       margin: { left: 14, right: 14 },
+      // Destaca R&W como referência
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 0) {
+          data.cell.styles.textColor = CLUB_RED;
+        }
+      },
     });
   }
 
-  // Gráfico evolução (Peso + %MG)
-  const chartY = (doc.lastAutoTable?.finalY ?? kpiY) + 8;
+  // Título da secção evolução
+  const chartY = (doc.lastAutoTable?.finalY ?? kpiY) + 12;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...CLUB_NAVY);
+  doc.text("EVOLUÇÃO", 14, chartY - 3);
+  doc.setDrawColor(...CLUB_NAVY);
+  doc.line(14, chartY - 1.5, 30, chartY - 1.5);
   const halfW = (pageW - 28 - 6) / 2;
   const pesoPoints = [
     ...(evals.map((e) => ({ v: e.peso_kg, d: new Date(e.date).toLocaleDateString("pt-PT") })).filter((p) => p.v != null)),
     ...(weighins || []).map((w) => ({ v: w.peso_kg, d: new Date(w.date).toLocaleDateString("pt-PT") })).filter((p) => p.v != null),
   ].sort((a, b) => a.d.localeCompare(b.d));
   const bfPoints = evals.map((e) => ({ v: e.metrics?.rw, d: new Date(e.date).toLocaleDateString("pt-PT") })).filter((p) => p.v != null);
-  drawLineChart(doc, "Evolução do peso", pesoPoints, 14, chartY, halfW, 40, " kg");
-  drawLineChart(doc, "Evolução da % MG (R&W)", bfPoints, 14 + halfW + 6, chartY, halfW, 40, "%");
+  drawLineChart(doc, "Peso (kg)", pesoPoints, 14, chartY, halfW, 38, " kg");
+  drawLineChart(doc, "% MG · Reilly & Wallace", bfPoints, 14 + halfW + 6, chartY, halfW, 38, "%");
 
   // Objetivo (se definido)
   if (athlete.goal?.bf_target_pct != null && last?.metrics?.rw != null) {
@@ -497,9 +535,16 @@ export async function exportAthletePdf(athlete, evals, weighins) {
     const currentWeight = last.peso_kg;
     const targetWeight = +(currentWeight * (100 - currentBf) / (100 - targetBf)).toFixed(1);
     const delta = +(currentWeight - targetWeight).toFixed(1);
+    const goalY = chartY + 48;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...CLUB_NAVY);
+    doc.text("OBJETIVO", 14, goalY - 3);
+    doc.setDrawColor(...CLUB_NAVY);
+    doc.line(14, goalY - 1.5, 28, goalY - 1.5);
     autoTable(doc, {
-      startY: chartY + 48,
-      theme: "grid",
+      startY: goalY,
+      theme: "plain",
       head: [["% MG atual", "% MG alvo", "Peso atual", "Peso alvo", "Δ peso"]],
       body: [[
         `${currentBf}%`,
@@ -508,16 +553,28 @@ export async function exportAthletePdf(athlete, evals, weighins) {
         `${targetWeight} kg`,
         `${Math.abs(delta)} kg ${delta > 0.1 ? "a perder" : delta < -0.1 ? "a ganhar" : "no alvo"}`,
       ]],
-      styles: { halign: "center", fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 8 },
-      bodyStyles: { fontStyle: "bold", fontSize: 10 },
+      styles: { halign: "center", fontSize: 8, cellPadding: 3, lineColor: [235, 235, 235], lineWidth: 0.15 },
+      headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5, cellPadding: 2 },
+      bodyStyles: { fontStyle: "bold", fontSize: 11, cellPadding: 4, textColor: CLUB_NAVY },
       margin: { left: 14, right: 14 },
+      // Peso alvo em vermelho (accent)
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index === 3) {
+          data.cell.styles.textColor = CLUB_RED;
+        }
+      },
     });
   }
 
   // Nova página: histórico completo
   doc.addPage();
   drawHeader(doc, `Histórico · ${athlete.nome}`, logo);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...CLUB_NAVY);
+  doc.text("REGISTO DE AVALIAÇÕES", 14, 46);
+  doc.setDrawColor(...CLUB_NAVY);
+  doc.line(14, 47.5, 65, 47.5);
   const histHead = [["Data", "Peso (kg)", "% MG (R&W)", "% MG (JP7)", "MG kg", "MM kg", "MM/MG", "IMC", "Σ 8"]];
   const histBody = [...evals].reverse().map((e) => {
     const m = e.metrics || {};
@@ -534,29 +591,32 @@ export async function exportAthletePdf(athlete, evals, weighins) {
     ];
   });
   autoTable(doc, {
-    startY: 42,
+    startY: 50,
     head: histHead,
     body: histBody,
-    theme: "striped",
-    styles: { fontSize: 8.5, cellPadding: 1.8, halign: "center" },
-    headStyles: { fillColor: CLUB_RED, textColor: 255, fontSize: 8 },
-    columnStyles: { 0: { fontStyle: "bold", halign: "left" } },
+    theme: "plain",
+    styles: { fontSize: 8.5, cellPadding: 3, halign: "center", lineColor: [235, 235, 235], lineWidth: 0.15 },
+    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5, cellPadding: 2.5 },
+    alternateRowStyles: { fillColor: [248, 249, 251] },
+    columnStyles: { 0: { fontStyle: "bold", halign: "left", textColor: CLUB_NAVY } },
     margin: { left: 14, right: 14 },
   });
 
   // Delta primeira vs última (se houver ≥ 2 avaliações)
   if (first && last && first !== last) {
-    const y = (doc.lastAutoTable?.finalY ?? 60) + 6;
-    doc.setFontSize(9);
+    const y = (doc.lastAutoTable?.finalY ?? 60) + 12;
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(...CLUB_NAVY);
-    doc.text("Progresso global", 14, y);
+    doc.text("PROGRESSO GLOBAL", 14, y - 3);
+    doc.setDrawColor(...CLUB_NAVY);
+    doc.line(14, y - 1.5, 42, y - 1.5);
     const deltaPeso = last.peso_kg - first.peso_kg;
     const deltaBf = (last.metrics?.rw ?? 0) - (first.metrics?.rw ?? 0);
     const deltaImc = (last.metrics?.imc ?? 0) - (first.metrics?.imc ?? 0);
     autoTable(doc, {
-      startY: y + 2,
-      theme: "grid",
+      startY: y,
+      theme: "plain",
       head: [["Da 1.ª avaliação", "Até à última", "Δ Peso", "Δ % MG", "Δ IMC"]],
       body: [[
         new Date(first.date).toLocaleDateString("pt-PT"),
@@ -565,11 +625,23 @@ export async function exportAthletePdf(athlete, evals, weighins) {
         `${deltaBf > 0 ? "+" : ""}${deltaBf.toFixed(1)}%`,
         `${deltaImc > 0 ? "+" : ""}${deltaImc.toFixed(1)}`,
       ]],
-      styles: { halign: "center", fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 8 },
-      bodyStyles: { fontStyle: "bold", fontSize: 10 },
+      styles: { halign: "center", fontSize: 8, cellPadding: 3, lineColor: [235, 235, 235], lineWidth: 0.15 },
+      headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5, cellPadding: 2 },
+      bodyStyles: { fontStyle: "bold", fontSize: 11, cellPadding: 4, textColor: CLUB_NAVY },
       margin: { left: 14, right: 14 },
     });
+  }
+
+  // Auditoria: registado por / atualizado por
+  if (last?.created_by_name || last?.created_at) {
+    const y = (doc.lastAutoTable?.finalY ?? 100) + 8;
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(140);
+    const parts = [];
+    if (last.created_by_name) parts.push(`Última avaliação registada por ${last.created_by_name}`);
+    if (last.created_at) parts.push(`em ${new Date(last.created_at).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" })}`);
+    doc.text(parts.join(" "), 14, y);
   }
 
   // Fotos da última avaliação (se existirem)

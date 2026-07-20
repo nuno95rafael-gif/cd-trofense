@@ -335,10 +335,23 @@ async def recompute_all(_: dict = Depends(require_editor)):
 
 
 # ---------- Evaluations ----------
+async def _enrich_user_names(docs: list) -> list:
+    """Adiciona campo created_by_name aos docs (lookup em users)."""
+    ids = list({d["created_by"] for d in docs if d.get("created_by")})
+    if not ids:
+        return docs
+    users = await db.users.find({"id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "email": 1}).to_list(len(ids))
+    name_by_id = {u["id"]: (u.get("name") or u.get("email") or "—") for u in users}
+    for d in docs:
+        if d.get("created_by"):
+            d["created_by_name"] = name_by_id.get(d["created_by"], "—")
+    return docs
+
+
 @api.get("/athletes/{aid}/evaluations")
 async def list_evaluations(aid: str, _: dict = Depends(get_current_user)):
     docs = await db.evaluations.find({"athlete_id": aid}, {"_id": 0}).sort("date", 1).to_list(500)
-    return docs
+    return await _enrich_user_names(docs)
 
 
 @api.post("/athletes/{aid}/evaluations")
@@ -354,6 +367,8 @@ async def create_evaluation(aid: str, body: EvaluationIn, user: dict = Depends(r
     ev["metrics"] = compute_all(ev, athlete)
     await db.evaluations.insert_one(ev)
     ev.pop("_id", None)
+    # enrich with user name for immediate UI
+    await _enrich_user_names([ev])
     return ev
 
 

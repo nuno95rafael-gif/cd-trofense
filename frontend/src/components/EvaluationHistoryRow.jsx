@@ -61,12 +61,32 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
         <div className="border-t px-4 py-4 bg-secondary/30 space-y-4">
           <div>
             <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">% MG por método</div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              <MethodCard label="Reilly & Wallace" v={m.rw} highlight />
-              <MethodCard label="Jackson-Pollock 7" v={m.jp7} />
-              <MethodCard label="Evans 7" v={m.evans7} />
-              <MethodCard label="Evans 3" v={m.evans3} />
-              <MethodCard label="Withers" v={m.withers} />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border rounded-md overflow-hidden">
+                <thead className="bg-secondary/60 text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+                  <tr>
+                    <th className="text-left px-3 py-2">Método</th>
+                    <th className="text-right px-3 py-2">% MG</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { l: "Reilly & Wallace", v: m.rw, hi: true },
+                    { l: "Jackson-Pollock 7", v: m.jp7 },
+                    { l: "Evans 7", v: m.evans7 },
+                    { l: "Evans 3", v: m.evans3 },
+                    { l: "Withers", v: m.withers },
+                  ].map((r) => (
+                    <tr key={r.l} className={`border-t ${r.hi ? "bg-primary/5" : ""}`}>
+                      <td className="px-3 py-1.5">
+                        <span className={`${r.hi ? "text-primary font-semibold" : ""}`}>{r.l}</span>
+                        {r.hi && <span className="ml-2 text-[9px] uppercase tracking-wider text-primary font-bold">Ref.</span>}
+                      </td>
+                      <td className="px-3 py-1.5 text-right num font-semibold">{r.v ?? "—"}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -112,6 +132,17 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
             <div className="text-sm">
               <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-1">Notas</div>
               <div className="text-muted-foreground">{e.notas}</div>
+            </div>
+          )}
+
+          {(e.created_by_name || e.created_at) && (
+            <div className="text-xs text-muted-foreground pt-3 mt-2 border-t border-dashed flex flex-wrap gap-x-4 gap-y-1" data-testid={`eval-audit-${e.id}`}>
+              {e.created_by_name && <span>Registado por <b className="text-foreground/80">{e.created_by_name}</b></span>}
+              {e.created_at && (
+                <span>
+                  em <b className="text-foreground/80">{new Date(e.created_at).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" })}</b>
+                </span>
+              )}
             </div>
           )}
         </div>

@@ -147,16 +147,27 @@ export default function AthleteProfile() {
           <Kpi label="Σ 8 pregas" value={metrics?.soma8 != null ? Math.round(metrics.soma8) : null} testid="kpi-soma8" />
         </div>
         {metrics && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">
-              Comparativo entre métodos · % MG
+          <div className="mt-6 pt-6 border-t">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-3">
+              Comparativo entre métodos · % Massa Gorda
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <MethodBox label="Reilly & Wallace" value={metrics.rw} />
-              <MethodBox label="Jackson-Pollock 7" value={metrics.jp7} />
-              <MethodBox label="Evans 7" value={metrics.evans7} />
-              <MethodBox label="Evans 3" value={metrics.evans3} />
-              <MethodBox label="Withers" value={metrics.withers} />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border rounded-md overflow-hidden" data-testid="methods-table">
+                <thead className="bg-secondary/40 text-xs uppercase tracking-widest text-muted-foreground font-semibold">
+                  <tr>
+                    <th className="text-left px-4 py-2.5">Método</th>
+                    <th className="text-right px-4 py-2.5">% Massa Gorda</th>
+                    <th className="text-left px-4 py-2.5 hidden md:table-cell">Fonte / Notas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <MethodRow label="Reilly & Wallace" value={metrics.rw} note="Referência do departamento médico" highlight />
+                  <MethodRow label="Jackson-Pollock 7" value={metrics.jp7} note="7 pregas · fórmula generalizada" />
+                  <MethodRow label="Evans 7" value={metrics.evans7} note="Sensível à etnia · 7 pregas" />
+                  <MethodRow label="Evans 3" value={metrics.evans3} note="Sensível à etnia · 3 pregas" />
+                  <MethodRow label="Withers" value={metrics.withers} note="Densidade corporal · 7 pregas" />
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -253,5 +264,20 @@ function MethodBox({ label, value }) {
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
       <div className="num font-display text-2xl font-bold">{value ?? "—"}<span className="text-sm text-muted-foreground">%</span></div>
     </div>
+  );
+}
+
+function MethodRow({ label, value, note, highlight }) {
+  return (
+    <tr className={`border-t ${highlight ? "bg-primary/5" : ""}`}>
+      <td className="px-4 py-2.5">
+        <span className={`font-semibold ${highlight ? "text-primary" : ""}`}>{label}</span>
+        {highlight && <span className="ml-2 text-[10px] uppercase tracking-wider text-primary font-bold">Ref.</span>}
+      </td>
+      <td className="px-4 py-2.5 text-right num font-display font-bold text-lg">
+        {value ?? "—"}<span className="text-xs text-muted-foreground ml-0.5">%</span>
+      </td>
+      <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">{note}</td>
+    </tr>
   );
 }
