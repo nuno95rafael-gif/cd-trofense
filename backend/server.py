@@ -181,16 +181,22 @@ class SendReportIn(BaseModel):
 
 @api.post("/athletes/{aid}/send-report")
 async def send_athlete_report(aid: str, body: SendReportIn, user: dict = Depends(require_editor)):
-    """Envia o relatório PDF do atleta por email via integração Resend gerida pela Emergent.
-    O PDF é gerado no cliente e enviado codificado em base64.
+    """Envia o relatório PDF do atleta por email. Usa Resend diretamente (suporta anexos).
+    Requer:
+      - RESEND_API_KEY (re_...) — chave da conta Resend
+      - RESEND_FROM_EMAIL — email de envio (ex: relatorios@trofense.pt) — precisa de domínio verificado.
+        Alternativa (só para testar): 'onboarding@resend.dev' (o domínio de fallback do Resend).
     """
-    email_key = os.environ.get("EMERGENT_EMAIL_KEY")
+    resend_key = os.environ.get("RESEND_API_KEY")
+    from_email = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
     from_name = os.environ.get("EMAIL_FROM_NAME", "CD Trofense · Departamento Médico")
-    if not email_key:
+
+    if not resend_key:
         raise HTTPException(
             status_code=503,
-            detail="Envio de email não configurado. Peça ao administrador para adicionar EMERGENT_EMAIL_KEY ao backend."
+            detail="Envio de email não configurado. Peça ao administrador para adicionar RESEND_API_KEY ao backend."
         )
+
     athlete = await db.athletes.find_one({"id": aid}, {"_id": 0})
     if not athlete:
         raise HTTPException(status_code=404, detail="Atleta não encontrado")
@@ -200,9 +206,9 @@ async def send_athlete_report(aid: str, body: SendReportIn, user: dict = Depends
 
     html_content = f"""
     <div style="font-family: Helvetica, Arial, sans-serif; color:#1B2C5A; max-width: 640px; margin: 0 auto;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; background:#1B2C5A; color:#fff; padding: 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; background:#1B2C5A; color:#fff;">
         <tr>
-          <td style="padding: 16px 20px;">
+          <td style="padding: 20px;">
             <div style="font-size: 12px; letter-spacing: 2px; color:#DC1928; font-weight:bold;">CLUBE DESPORTIVO TROFENSE</div>
             <div style="font-size: 18px; margin-top: 4px; font-weight:bold;">Departamento Médico · Composição Corporal</div>
           </td>
@@ -221,10 +227,10 @@ async def send_athlete_report(aid: str, body: SendReportIn, user: dict = Depends
     """
 
     payload = {
+        "from": f"{from_name} <{from_email}>",
         "to": [body.recipient_email],
         "subject": subject,
         "html": html_content,
-        "from_name": from_name,
         "attachments": [{
             "filename": body.filename or "relatorio.pdf",
             "content": body.pdf_base64,
@@ -234,15 +240,24 @@ async def send_athlete_report(aid: str, body: SendReportIn, user: dict = Depends
     try:
         async with httpx.AsyncClient(timeout=45) as httpc:
             resp = await httpc.post(
-                f"{EMAIL_BASE_URL}/api/v1/email/send",
-                headers={"X-Email-Key": email_key},
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {resend_key}",
+                    "Content-Type": "application/json",
+                },
                 json=payload,
             )
         resp.raise_for_status()
         return {"ok": True, "email_id": resp.json().get("id")}
     except httpx.HTTPStatusError as e:
         logger.error("send-report failed: %s %s", e.response.status_code, e.response.text)
-        raise HTTPException(status_code=502, detail=f"Falha no envio do email ({e.response.status_code})")
+        # devolver detalhe do Resend ao user (útil para debugar domínio não verificado, etc)
+        try:
+            err = e.response.json()
+            detail = err.get("message") or err.get("error") or f"HTTP {e.response.status_code}"
+        except Exception:
+            detail = f"HTTP {e.response.status_code}"
+        raise HTTPException(status_code=502, detail=f"Falha no envio: {detail}")
     except Exception as e:
         logger.exception("send-report error")
         raise HTTPException(status_code=500, detail=f"Erro ao enviar email: {e}")
