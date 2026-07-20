@@ -213,7 +213,7 @@ export function EvaluationForm({ athlete, onSaved }) {
               <Metric label="Massa Magra" value={metrics.lean_mass_kg} unit="kg" />
               <Metric label="MM/MG" value={metrics.mm_mg_ratio} strong />
               <Metric label="IMC" value={metrics.imc} strong />
-              <Metric label="Σ 8 pregas" value={metrics.soma8 != null ? Math.round(metrics.soma8) : null} />
+              <Metric label="Σ 8 pregas" value={metrics.soma8 != null ? Math.round(metrics.soma8) : null} unit="mm" />
               <Metric label="% MM" value={metrics.perc_mm} unit="%" />
             </div>
           </div>

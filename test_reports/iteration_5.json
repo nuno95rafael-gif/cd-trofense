@@ -1,0 +1,69 @@
+{
+  "summary": "Iteration 5 · PDF visual regression for the athlete report (Wilson Oliveira). Verified end-to-end via Playwright + pdfplumber/pypdfium2 rendering. Frontend UI 'mm' unit fixes are all correct in AthleteProfile / EvaluationHistoryRow (summary + expanded) / EvaluationForm / EvaluationCharts. In the generated PDF: chart↔OBJETIVO overlap is FIXED, photos aspect ratio is FIXED, page-2 historic header shows 'Σ 8 (mm)'. HOWEVER — BUG PDF-2 is only PARTIALLY fixed: the PAGE-1 INDICADORES table still renders '132' with NO 'mm' unit (pdf.js:476 was missed). Other PDFs (Dashboard, Team Goals) continue to work.",
+  "tested_scope": ["frontend", "pdf-artifact"],
+  "passed": [
+    "AthleteProfile KPI kpi-soma8: renders '132 mm' (UI). ✓",
+    "EvaluationHistoryRow summary row (Wilson): renders 'Σ8 132 mm'. ✓",
+    "EvaluationHistoryRow expanded row: renders 'Σ 8 pregas 132 mm'. ✓",
+    "PDF page 1 chart↔OBJETIVO overlap: FIXED. Clear whitespace between chart X-axis date labels ('11/07/2026 15/02/2026') and OBJETIVO heading; goalY = chartY + chartH + 14 is respected.",
+    "PDF page 2 historic header 'Σ 8 (mm)': present in header row. ✓",
+    "PDF page 3 photos: 3 boxes (Frente/Perfil/Costas) rendered with navy border, photos preserve aspect ratio (imgSize=480x633, boxSize≈155x204, aspect matches within 0.5% — fitContain honored), photos are NOT stretched, legendas underneath. Wilson's 3 photos with evaluation_id=null were correctly picked up thanks to the permissive fallback filter.",
+    "Dashboard PDF /api integration still works (217 KB).",
+    "Team Goals PDF still works (210 KB, data-testid=download-team-goals-pdf)."
+  ],
+  "failed": [
+    "BUG PDF-2 (P1) NOT FULLY FIXED — page-1 INDICADORES table still shows the Σ 8 pregas value as '132' WITHOUT the 'mm' unit. The fix was applied everywhere else (page-2 header, KPI, history rows, real-time metric block, charts) but pdf.js:476 was missed."
+  ],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PDF individual · Page 1 INDICADORES table",
+        "issue": "Column 'Σ 8 pregas' renders '132' but review specifies '132 mm' (com unidades). All other Σ 8 places have been fixed except this one.",
+        "selector": "/app/frontend/src/lib/pdf.js line 476",
+        "priority": "P1"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "PDF individual · Page 1 EVOLUÇÃO section",
+        "issues": [
+          "Minor visual collision: the section heading 'EVOLUÇÃO' is drawn at chartY - 3 while drawLineChart draws its internal 'Peso (kg)' title at chartY - 2 — they render on top of each other producing a smudged look. Suggest either raise the section heading (chartY - 6) OR remove the redundant 'Peso (kg)' from the section that already has 'EVOLUÇÃO' + Peso (kg) label at same line."
+        ]
+      },
+      {
+        "screen": "PDF individual · font glyphs",
+        "issues": [
+          "Helvetica (jspdf default) does not include Greek Σ / Δ. As a result, the INDICADORES header shows '£ 8 preg' (truncated) instead of 'Σ 8 pregas' and OBJETIVO shows spaced-out 'Δ peso'. Pre-existing issue outside review scope but visible in the generated report — recommend registering a Unicode TTF (e.g., DejaVuSans) via doc.addFileToVFS / doc.addFont for future improvement."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/pdf_downloads/wilson_report.pdf",
+    "/app/test_reports/pdf_downloads/wilson_page1.png",
+    "/app/test_reports/pdf_downloads/wilson_page2.png",
+    "/app/test_reports/pdf_downloads/wilson_page3.png",
+    "/app/test_reports/pdf_downloads/dashboard.pdf",
+    "/app/test_reports/pdf_downloads/teamgoals.pdf"
+  ],
+  "action_items": [
+    "Fix /app/frontend/src/lib/pdf.js:476 — change  `${Math.round(last.metrics.soma8)}`  to  `${Math.round(last.metrics.soma8)} mm`  (only when soma8 is not null). Trivial 1-line change; after that page-1 INDICADORES will show '132 mm' as specified in the review.",
+    "(Optional/minor) Rework the EVOLUÇÃO block so the 'EVOLUÇÃO' section heading does not visually collide with the individual chart titles 'Peso (kg)' / '% MG · Reilly & Wallace'. Options: move heading up (chartY - 8), remove per-chart titles, or increase chartY by ~4mm.",
+    "(Optional / pre-existing) Consider registering a Unicode TTF in jspdf so that Σ and Δ render correctly across headers — currently they fall back to £ and letter-spaced Δ."
+  ],
+  "critical_code_review_comments": [
+    "pdf.js is ~747 lines and mixes 3 distinct exports (dashboard, team-goals, athlete). Consider splitting into /lib/pdf/dashboard.js /lib/pdf/teamGoals.js /lib/pdf/athlete.js + shared /lib/pdf/common.js (drawHeader/drawFooter/fitContain).",
+    "fetchPhotoAsDataUrl is called sequentially inside a for-loop for the 3 photos — could be parallelised with Promise.all to speed up PDF generation on slow connections.",
+    "The Σ 8 unit inconsistency (fixed everywhere except line 476) is a textbook case for a shared helper like formatSoma8(v) => v == null ? '—' : `${Math.round(v)} mm`. Recommend introducing such helper to avoid future divergence."
+  ],
+  "updated_files": [],
+  "success_rate": {"frontend_ui": "100% (3/3 mm unit checks)", "pdf_visual": "75% (3/4 review checks: overlap OK, page-2 header OK, photos OK — page-1 INDICADORES mm MISSING)"},
+  "test_credentials": "admin@trofense.pt / Trofense2026! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. Read-only tests. Generated PDFs stored at /app/test_reports/pdf_downloads/ for inspection.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Wilson Oliveira id = d191ac87-61cb-4e64-9bf9-bd5a3d699494. Route to profile is /atletas/:id (NOT /atleta/). PDF download uses data-testid=download-athlete-pdf; page.expect_download() works. To validate the fix, re-render page 1 with pypdfium2 and check pdfplumber text: the Σ 8 column value must read '132 mm' (currently reads '132'). Sample rendered images kept at /app/test_reports/pdf_downloads/wilson_page{1,2,3}.png.",
+  "rca of the issue": "The 'mm' unit fix was applied to KPI (AthleteProfile.jsx:159), real-time metric block (EvaluationForm.jsx:216), history rows (EvaluationHistoryRow.jsx:50,125), charts (EvaluationCharts.jsx:17) and page-2 PDF header ('Σ 8 (mm)'), but the developer forgot the KPI cell in the page-1 PDF INDICADORES table at pdf.js:476. Reproduction: login → /atletas/d191ac87-61cb-4e64-9bf9-bd5a3d699494 → click 'Descarregar PDF' → open page 1 → last column of INDICADORES shows 132 instead of 132 mm. Fix: append ' mm' to the value string when soma8 is not null (one line)."
+}

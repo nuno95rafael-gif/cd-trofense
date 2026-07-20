@@ -144,7 +144,7 @@ export async function exportDashboardPdf(athletes, stats) {
       a.altura_cm != null ? String(a.altura_cm) : "—",
       a.display_weight != null ? String(a.display_weight) : "—",
       { content: m.rw != null ? `${m.rw}%` : "—", band: rwBand(m.rw).color },
-      { content: m.soma8 != null ? String(Math.round(m.soma8)) : "—", band: soma8Band(m.soma8).color },
+      { content: m.soma8 != null ? `${Math.round(m.soma8)} mm` : "—", band: soma8Band(m.soma8).color },
       { content: m.perc_mm != null ? `${m.perc_mm}%` : "—", band: percMMBand(m.perc_mm).color },
       { content: m.mm_mg_ratio != null ? String(m.mm_mg_ratio) : "—", band: mmMgBand(m.mm_mg_ratio, a.sexo === "M" ? 1 : 0).color },
       { content: m.imc != null ? String(m.imc) : "—", band: imcBand(m.imc).color },
@@ -255,7 +255,7 @@ export async function exportTeamGoalsPdf(rows, counts) {
 // PDF INDIVIDUAL POR ATLETA
 // -------------------------------------------------------------------
 
-/** Descarrega uma foto autenticada e devolve como data URL (para embed em PDF). */
+/** Descarrega uma foto autenticada e devolve como data URL + dimensões naturais. */
 async function fetchPhotoAsDataUrl(photoId) {
   try {
     const token = localStorage.getItem("trofense_token");
@@ -272,6 +272,36 @@ async function fetchPhotoAsDataUrl(photoId) {
       r.readAsDataURL(blob);
     });
   } catch { return null; }
+}
+
+/** Devolve {w, h} naturais de uma imagem a partir de um data URL. */
+async function getImageSize(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => resolve({ w: 0, h: 0 });
+    img.src = dataUrl;
+  });
+}
+
+/** Ajusta a imagem à caixa (contain), preservando aspect ratio. Devolve x/y/w/h para o addImage. */
+function fitContain(imgW, imgH, boxX, boxY, boxW, boxH) {
+  if (!imgW || !imgH) return { x: boxX, y: boxY, w: boxW, h: boxH };
+  const boxAspect = boxW / boxH;
+  const imgAspect = imgW / imgH;
+  let w, h;
+  if (imgAspect > boxAspect) {
+    // limitado pela largura
+    w = boxW;
+    h = boxW / imgAspect;
+  } else {
+    // limitado pela altura
+    h = boxH;
+    w = boxH * imgAspect;
+  }
+  const x = boxX + (boxW - w) / 2;
+  const y = boxY + (boxH - h) / 2;
+  return { x, y, w, h };
 }
 
 /** Desenha um gráfico de linhas simples de evolução de uma métrica. */
@@ -377,7 +407,14 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
   // Avatar (com anel navy)
   const avX = 22, avY = cardY + 4, avSize = 38;
   if (profileDataUrl) {
-    try { doc.addImage(profileDataUrl, "JPEG", avX, avY, avSize, avSize); } catch { /* ignore */ }
+    try {
+      const s = await getImageSize(profileDataUrl);
+      const fit = fitContain(s.w, s.h, avX, avY, avSize, avSize);
+      // Fundo cinza claro para preencher zonas laterais quando aspect ≠ 1:1
+      doc.setFillColor(230, 232, 236);
+      doc.rect(avX, avY, avSize, avSize, "F");
+      doc.addImage(profileDataUrl, "JPEG", fit.x, fit.y, fit.w, fit.h);
+    } catch { /* ignore */ }
   } else {
     doc.setFillColor(230, 232, 236);
     doc.rect(avX, avY, avSize, avSize, "F");
@@ -486,7 +523,7 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
   }
 
   // Título da secção evolução
-  const chartY = (doc.lastAutoTable?.finalY ?? kpiY) + 12;
+  const chartY = (doc.lastAutoTable?.finalY ?? kpiY) + 14;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...CLUB_NAVY);
@@ -494,22 +531,23 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
   doc.setDrawColor(...CLUB_NAVY);
   doc.line(14, chartY - 1.5, 30, chartY - 1.5);
   const halfW = (pageW - 28 - 6) / 2;
+  const chartH = 36;
   const pesoPoints = [
     ...(evals.map((e) => ({ v: e.peso_kg, d: new Date(e.date).toLocaleDateString("pt-PT") })).filter((p) => p.v != null)),
     ...(weighins || []).map((w) => ({ v: w.peso_kg, d: new Date(w.date).toLocaleDateString("pt-PT") })).filter((p) => p.v != null),
   ].sort((a, b) => a.d.localeCompare(b.d));
   const bfPoints = evals.map((e) => ({ v: e.metrics?.rw, d: new Date(e.date).toLocaleDateString("pt-PT") })).filter((p) => p.v != null);
-  drawLineChart(doc, "Peso (kg)", pesoPoints, 14, chartY, halfW, 38, " kg");
-  drawLineChart(doc, "% MG · Reilly & Wallace", bfPoints, 14 + halfW + 6, chartY, halfW, 38, "%");
+  drawLineChart(doc, "Peso (kg)", pesoPoints, 14, chartY, halfW, chartH, " kg");
+  drawLineChart(doc, "% MG · Reilly & Wallace", bfPoints, 14 + halfW + 6, chartY, halfW, chartH, "%");
 
-  // Objetivo (se definido)
+  // Objetivo (se definido) — usa Y dinâmico depois dos gráficos + labels (+3 abaixo do gráfico)
+  const goalY = chartY + chartH + 14; // chart + labels + respiração
   if (athlete.goal?.bf_target_pct != null && last?.metrics?.rw != null) {
     const targetBf = athlete.goal.bf_target_pct;
     const currentBf = last.metrics.rw;
     const currentWeight = last.peso_kg;
     const targetWeight = +(currentWeight * (100 - currentBf) / (100 - targetBf)).toFixed(1);
     const delta = +(currentWeight - targetWeight).toFixed(1);
-    const goalY = chartY + 48;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(...CLUB_NAVY);
@@ -531,7 +569,6 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
       headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5, cellPadding: 2 },
       bodyStyles: { fontStyle: "bold", fontSize: 11, cellPadding: 4, textColor: CLUB_NAVY },
       margin: { left: 14, right: 14 },
-      // Peso alvo em vermelho (accent)
       didParseCell: (data) => {
         if (data.section === "body" && data.column.index === 3) {
           data.cell.styles.textColor = CLUB_RED;
@@ -549,7 +586,7 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
   doc.text("REGISTO DE AVALIAÇÕES", 14, 46);
   doc.setDrawColor(...CLUB_NAVY);
   doc.line(14, 47.5, 65, 47.5);
-  const histHead = [["Data", "Peso (kg)", "% MG (R&W)", "% MG (JP7)", "MG kg", "MM kg", "MM/MG", "IMC", "Σ 8"]];
+  const histHead = [["Data", "Peso (kg)", "% MG (R&W)", "% MG (JP7)", "MG kg", "MM kg", "MM/MG", "IMC", "Σ 8 (mm)"]];
   const histBody = [...evals].reverse().map((e) => {
     const m = e.metrics || {};
     return [
@@ -627,33 +664,61 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
     });
     if (listRes.ok && last) {
       const list = await listRes.json();
-      const evPhotos = (list || []).filter((p) => p.evaluation_id === last.id && ["frontal", "perfil", "costas"].includes(p.kind));
-      if (evPhotos.length) {
+      // Escolhe, para cada tipo, a foto ligada à última avaliação; se não houver, cai para a mais recente sem evaluation_id.
+      const pickPhoto = (kind) => {
+        const cands = (list || []).filter((p) => p.kind === kind && (p.evaluation_id === last.id || p.evaluation_id == null));
+        cands.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+        return cands[0] || null;
+      };
+      const evPhotos = ["frontal", "perfil", "costas"].map(pickPhoto);
+      if (evPhotos.some(Boolean)) {
         doc.addPage();
         drawHeader(doc, `Fotografias · Última avaliação`, logo);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(...CLUB_NAVY);
+        doc.text("REGISTO FOTOGRÁFICO", 14, 46);
+        doc.setDrawColor(...CLUB_NAVY);
+        doc.line(14, 47.5, 60, 47.5);
         doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
         doc.setTextColor(80);
-        doc.text(`Data: ${new Date(last.date).toLocaleDateString("pt-PT")}`, 14, 42);
-        const w = (pageW - 28 - 12) / 3; // 3 slots com 6mm de espaço entre
-        const h = w * 1.33; // 3:4
-        const y = 48;
+        doc.text(`Data: ${new Date(last.date).toLocaleDateString("pt-PT", { day: "2-digit", month: "long", year: "numeric" })}`, 14, 52);
+
+        const gap = 6;
+        const boxW = (pageW - 28 - gap * 2) / 3;
+        const boxH = boxW * 1.33; // caixa 3:4 (retrato)
+        const y = 60;
         const labels = { frontal: "Frente", perfil: "Perfil", costas: "Costas" };
         const order = ["frontal", "perfil", "costas"];
         for (let i = 0; i < order.length; i++) {
-          const p = evPhotos.find((x) => x.kind === order[i]);
-          const x = 14 + (w + 6) * i;
-          doc.setDrawColor(200);
-          doc.rect(x, y, w, h);
+          const p = evPhotos[i];
+          const x = 14 + (boxW + gap) * i;
+          // Caixa navy claro (fundo)
+          doc.setFillColor(245, 246, 249);
+          doc.setDrawColor(...CLUB_NAVY);
+          doc.setLineWidth(0.4);
+          doc.rect(x, y, boxW, boxH, "FD");
           if (p) {
             const data = await fetchPhotoAsDataUrl(p.id);
             if (data) {
-              try { doc.addImage(data, "JPEG", x + 1, y + 1, w - 2, h - 2); } catch { /* ignore */ }
+              try {
+                const size = await getImageSize(data);
+                const fit = fitContain(size.w, size.h, x + 1, y + 1, boxW - 2, boxH - 2);
+                doc.addImage(data, "JPEG", fit.x, fit.y, fit.w, fit.h);
+              } catch { /* ignore */ }
             }
+          } else {
+            doc.setTextColor(160);
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "italic");
+            doc.text("Sem foto", x + boxW / 2, y + boxH / 2, { align: "center" });
           }
-          doc.setFontSize(9);
+          // Legenda por baixo
+          doc.setFontSize(10);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(...CLUB_NAVY);
-          doc.text(labels[order[i]], x + w / 2, y + h + 5, { align: "center" });
+          doc.text(labels[order[i]], x + boxW / 2, y + boxH + 7, { align: "center" });
         }
       }
     }

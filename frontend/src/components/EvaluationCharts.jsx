@@ -14,7 +14,7 @@ export function EvaluationCharts({ evals }) {
       <ChartBlock title="% Massa Gorda (R&W)" data={data} dataKey="bf" color="hsl(0 72% 51%)" unit="%" />
       <ChartBlock title="Massa Muscular (kg)" data={data} dataKey="mm" color="hsl(var(--primary))" unit=" kg" />
       <ChartBlock title="Peso (kg)" data={data} dataKey="peso" color="hsl(217 91% 60%)" unit=" kg" />
-      <ChartBlock title="Σ 8 pregas" data={data} dataKey="soma8" color="hsl(43 96% 50%)" unit="" />
+      <ChartBlock title="Σ 8 pregas" data={data} dataKey="soma8" color="hsl(43 96% 50%)" unit=" mm" />
     </div>
   );
 }

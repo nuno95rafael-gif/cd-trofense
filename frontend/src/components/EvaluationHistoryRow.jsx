@@ -47,7 +47,7 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
           <span>MG(R&W) <b>{m.rw ?? "—"}%</b></span>
           <span>MM <b>{m.muscle_mass_kg ?? "—"} kg</b></span>
           <span>IMC <b>{m.imc ?? "—"}</b></span>
-          <span>Σ8 <b>{m.soma8 != null ? Math.round(m.soma8) : "—"}</b></span>
+          <span>Σ8 <b>{m.soma8 != null ? `${Math.round(m.soma8)} mm` : "—"}</b></span>
           <StatusPill status={m.status_rw ?? m.status} />
           {isEditor && (
             <Button size="sm" variant="ghost" onClick={() => onDelete(e.id)} data-testid={`delete-eval-${e.id}`}>
@@ -122,7 +122,7 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
                 <Row label="% Massa Muscular" v={m.perc_mm} unit="%" />
                 <Row label="MM / MG" v={m.mm_mg_ratio} />
                 <Row label="IMC" v={m.imc} />
-                <Row label="Σ 8 pregas" v={m.soma8 != null ? Math.round(m.soma8) : null} />
+                <Row label="Σ 8 pregas" v={m.soma8 != null ? Math.round(m.soma8) : null} unit="mm" />
                 {m.ratio_ca != null && <Row label="Rácio cintura/anca" v={m.ratio_ca} />}
               </div>
             </div>

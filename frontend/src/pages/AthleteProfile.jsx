@@ -156,7 +156,7 @@ export default function AthleteProfile() {
           <Kpi label="Massa Muscular" value={metrics?.muscle_mass_kg} unit="kg" testid="kpi-mm" />
           <Kpi label="MM/MG" value={metrics?.mm_mg_ratio} testid="kpi-mmmg" />
           <Kpi label="IMC" value={metrics?.imc} testid="kpi-imc" />
-          <Kpi label="Σ 8 pregas" value={metrics?.soma8 != null ? Math.round(metrics.soma8) : null} testid="kpi-soma8" />
+          <Kpi label="Σ 8 pregas" value={metrics?.soma8 != null ? Math.round(metrics.soma8) : null} unit="mm" testid="kpi-soma8" />
         </div>
         {metrics && (
           <div className="mt-6 pt-6 border-t">
