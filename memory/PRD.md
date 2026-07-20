@@ -45,12 +45,23 @@ Plataforma web (React + FastAPI + MongoDB) para o departamento médico do CD Tro
 - [x] Fórmulas exatas alinhadas 1:1 com `trofense_composicao_corporal.jsx` (validado numericamente)
 - [x] Remoção do "Σ 7 pregas" (mantido apenas Σ 8)
 - [x] Nova Avaliação em Dialog modal (a partir do perfil do atleta)
-- [x] Fotos por Avaliação — 3 slots fixos (Frente/Perfil/Costas) com crop livre de 8 pegas + linhas guia via `react-image-crop` (`PhotoCropDialog.jsx`)
+- [x] Fotos por Avaliação — 3 slots fixos (Frente/Perfil/Costas) com crop livre de 8 pegas + linhas guia via `react-image-crop`
 - [x] Slots renderizam em `object-contain` com o fundo da página a preencher o espaço restante
 - [x] Upload de fotos ligado a `evaluation_id` (backend suporta na `POST /api/athletes/{aid}/photos`)
 - [x] Aba `Fotos` com selector de avaliação + slots recortáveis/substituíveis
-- [x] Histórico de avaliações vertical com pregas/perímetros um abaixo do outro (`EvaluationHistoryRow`)
-- [x] Fix: crash de compilação em `EvaluationForm.jsx`
+- [x] Histórico de avaliações vertical com pregas/perímetros um abaixo do outro
+- [x] Objetivos de Equipa (`/objetivos-equipa`) com 6 sumários + filtros multi-dimensão + colunas ordenáveis + PDF replica-ecrã
+- [x] Estados granulares de peso-alvo (`lib/goalStatus.js`) reutilizados na aba individual + team
+- [x] Export PDF client-side com `jspdf` + `jspdf-autotable`: Dashboard, Objetivos de Equipa, PDF individual do atleta (capa + KPIs + métodos + evolução + histórico + fotos)
+- [x] Identidade visual do clube: emblema oficial + faixa vermelha + acento amarelo + paleta trocada de verde para vermelho/navy/amarelo
+- [x] Comparativo entre métodos em tabela (perfil + histórico)
+- [x] Auditoria criado_por + data nas avaliações
+- [x] Foto de perfil separada das fotos de avaliação (`AthleteAvatar.jsx`)
+- [x] Envio de PDF por email (endpoint pronto — aguarda EMERGENT_EMAIL_KEY)
+- [x] BUG P0: apagar utilizador (endpoint DELETE /api/users adicionado, testado 100%)
+- [x] Progresso do objetivo mostra "N/A" + texto explicativo quando só há 1 avaliação
+- [x] Campos email + contacto no atleta
+- [x] Bugs visuais no PDF individual: overlap gráficos↔objetivo (chartY dinâmico), Σ 8 pregas com "mm", fotos com aspect ratio preservado (`fitContain`), símbolos Σ/Δ substituídos por "Soma"/"Dif." (Helvetica não suporta glifos gregos), setas ↑/↓ substituídas por "A perder peso"/"A ganhar peso"
 - [x] **Objetivos de Equipa** — nova página `/objetivos-equipa` (aba na sidebar) com vista consolidada dos ajustes de peso individuais: 6 cards de sumário (Prioritário/Em progresso/Quase lá/Atingido/Sem objetivo/Todos), **filtros multi-dimensão** (pesquisa por nome, posição, estado, direção do ajuste), **colunas ordenáveis** (nome, posição, estado, peso, %MG, alvo, Δ), tabela ordenada por prioridade com Δ peso + progresso, click numa linha vai ao perfil
 - [x] **Estados granulares de peso-alvo** (`lib/goalStatus.js`): Atingido (|Δ|≤0.5kg) / Quase lá (≤2kg) / Em progresso (≤5kg) / Prioritário (>5kg). Pill reutilizada no `GoalsPanel` individual + `TeamGoals`
 - [x] **Export PDF client-side** (`lib/pdf.js` com `jspdf` + `jspdf-autotable`) — botão "Descarregar PDF" no Dashboard (KPIs + plantel com badges coloridos por banda) e nos Objetivos de Equipa (sumário + tabela priorizada com colorização por estado). Suporte completo a caracteres PT-PT, cabeçalho com faixa vermelha/amarela do clube, emblema oficial incorporado e rodapé com paginação + "Desde 1930 · história, paixão e glória"

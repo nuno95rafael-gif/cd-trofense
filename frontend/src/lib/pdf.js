@@ -205,7 +205,7 @@ export async function exportTeamGoalsPdf(rows, counts) {
     r.targetBf != null ? `${r.targetBf}%` : "—",
     r.targetWeight != null ? `${r.targetWeight} kg` : "—",
     r.absDelta != null ? `${r.absDelta} kg` : "—",
-    r.direction === "perder" ? "↓ A perder" : r.direction === "ganhar" ? "↑ A ganhar" : r.direction === "manter" ? "— No alvo" : "—",
+    r.direction === "perder" ? "A perder peso" : r.direction === "ganhar" ? "A ganhar peso" : r.direction === "manter" ? "No alvo" : "—",
   ]);
 
   autoTable(doc, {
