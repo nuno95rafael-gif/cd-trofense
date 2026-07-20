@@ -186,42 +186,15 @@ export async function exportDashboardPdf(athletes, stats) {
   doc.save(filename);
 }
 
-/** PDF dos Objetivos de Equipa: sumário + tabela priorizada. */
+/** PDF dos Objetivos de Equipa: réplica da tabela do ecrã (sem sumário separado). */
 export async function exportTeamGoalsPdf(rows, counts) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const logo = await getLogoDataUrl();
   drawHeader(doc, "Objetivos de Equipa · Ajustes de peso", logo);
 
-  // Sumário de estados
-  const summary = [
-    ["Prioritário", counts.prioritario],
-    ["Em progresso", counts.em_progresso],
-    ["Quase lá", counts.quase_la],
-    ["Atingido", counts.atingido],
-    ["Sem objetivo", counts.sem_objetivo],
-    ["Total", (counts.prioritario ?? 0) + (counts.em_progresso ?? 0) + (counts.quase_la ?? 0) + (counts.atingido ?? 0) + (counts.sem_objetivo ?? 0) + (counts.sem_dados ?? 0)],
-  ];
-  autoTable(doc, {
-    startY: 44,
-    theme: "plain",
-    head: [summary.map((k) => k[0])],
-    body: [summary.map((k) => String(k[1] ?? 0))],
-    styles: { halign: "center", fontSize: 8, cellPadding: 3, lineColor: [230, 230, 230], lineWidth: 0.1 },
-    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5, cellPadding: 2.5 },
-    bodyStyles: { fontStyle: "bold", fontSize: 14, cellPadding: 5, textColor: CLUB_NAVY },
-    didParseCell: (data) => {
-      if (data.section !== "body") return;
-      const labelRow = summary.map((s) => s[0]);
-      const label = labelRow[data.column.index];
-      const map = { "Prioritário": "prioritario", "Em progresso": "em_progresso", "Quase lá": "quase_la", "Atingido": "atingido" };
-      if (map[label]) {
-        const [r, g, b] = statusRgb(map[label]);
-        data.cell.styles.textColor = [r, g, b];
-      }
-    },
-  });
+  const pageW = doc.internal.pageSize.getWidth();
 
-  // Tabela priorizada
+  // Tabela — mesmas colunas que aparecem no ecrã da app
   const head = [["Atleta", "Posição", "Estado", "Peso atual", "% MG atual", "% MG alvo", "Peso alvo", "Δ peso", "Direção"]];
   const body = rows.map((r) => [
     r.nome,
@@ -232,19 +205,20 @@ export async function exportTeamGoalsPdf(rows, counts) {
     r.targetBf != null ? `${r.targetBf}%` : "—",
     r.targetWeight != null ? `${r.targetWeight} kg` : "—",
     r.absDelta != null ? `${r.absDelta} kg` : "—",
-    r.direction === "perder" ? "↓ Perder" : r.direction === "ganhar" ? "↑ Ganhar" : r.direction === "manter" ? "— No alvo" : "—",
+    r.direction === "perder" ? "↓ A perder" : r.direction === "ganhar" ? "↑ A ganhar" : r.direction === "manter" ? "— No alvo" : "—",
   ]);
 
   autoTable(doc, {
     head,
     body,
-    startY: doc.lastAutoTable.finalY + 6,
-    theme: "striped",
-    styles: { fontSize: 9, cellPadding: 2.5 },
-    headStyles: { fillColor: CLUB_RED, textColor: 255, fontSize: 9 },
+    startY: 44,
+    theme: "plain",
+    styles: { fontSize: 9, cellPadding: 3, lineColor: [235, 235, 235], lineWidth: 0.15 },
+    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 8.5, cellPadding: 3 },
+    alternateRowStyles: { fillColor: [248, 249, 251] },
     columnStyles: {
-      0: { fontStyle: "bold", cellWidth: 45 },
-      1: { cellWidth: 20 },
+      0: { fontStyle: "bold", cellWidth: 48, textColor: CLUB_NAVY },
+      1: { cellWidth: 22 },
       3: { halign: "right" },
       4: { halign: "right" },
       5: { halign: "right" },
@@ -256,21 +230,20 @@ export async function exportTeamGoalsPdf(rows, counts) {
       const cell = data.cell.raw;
       if (data.section === "body" && cell && typeof cell === "object" && cell.status) {
         const [r, g, b] = statusRgb(cell.status);
-        data.cell.styles.fillColor = [r, g, b, 0.15];
         data.cell.styles.textColor = [r, g, b];
         data.cell.styles.fontStyle = "bold";
       }
     },
   });
 
-  // Nota final
+  // Nota final compacta com faixas
   const finalY = doc.lastAutoTable.finalY + 8;
   doc.setFontSize(8);
   doc.setTextColor(100);
   doc.text(
-    "Peso alvo calculado com base no peso atual, % MG atual (Reilly & Wallace) e % MG alvo, preservando a massa magra. " +
-    "Faixas: Atingido ≤0.5 kg · Quase lá ≤2 kg · Em progresso ≤5 kg · Prioritário >5 kg.",
-    14, finalY, { maxWidth: doc.internal.pageSize.getWidth() - 28 }
+    "Faixas: Atingido ≤0.5 kg · Quase lá ≤2 kg · Em progresso ≤5 kg · Prioritário >5 kg. " +
+    "Peso alvo calculado a partir do peso atual, % MG atual (Reilly & Wallace) e % MG alvo, preservando a massa magra.",
+    14, finalY, { maxWidth: pageW - 28 }
   );
 
   drawFooter(doc);
@@ -368,8 +341,9 @@ function drawLineChart(doc, title, points, x, y, w, h, unit = "") {
 /**
  * PDF individual por atleta: capa com foto de perfil + KPIs + histórico + evolução.
  * `athlete`, `evals` (ordenados asc), `weighins` (ordenados asc).
+ * Se `saveFile=false`, devolve o `doc` sem gravar (útil para envio por email).
  */
-export async function exportAthletePdf(athlete, evals, weighins) {
+export async function exportAthletePdf(athlete, evals, weighins, saveFile = true) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const logo = await getLogoDataUrl();
   drawHeader(doc, `Relatório · ${athlete.nome}`, logo);
@@ -688,7 +662,19 @@ export async function exportAthletePdf(athlete, evals, weighins) {
   drawFooter(doc);
   const safe = (athlete.nome || "atleta").replace(/[^\w-]+/g, "_");
   const filename = `trofense_${safe}_${new Date().toISOString().slice(0, 10)}.pdf`;
-  doc.save(filename);
+  if (saveFile) {
+    doc.save(filename);
+    return { doc, filename };
+  }
+  return { doc, filename };
+}
+
+/** Gera o PDF individual do atleta e devolve-o como base64 (para envio por email). */
+export async function exportAthletePdfAsBase64(athlete, evals, weighins) {
+  const { doc, filename } = await exportAthletePdf(athlete, evals, weighins, false);
+  const dataUri = doc.output("datauristring");
+  const base64 = dataUri.split(",")[1];
+  return { base64, filename };
 }
 
 // Re-export computeGoalStatus for convenience if needed by callers

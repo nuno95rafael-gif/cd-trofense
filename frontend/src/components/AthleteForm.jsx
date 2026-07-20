@@ -16,6 +16,8 @@ export function AthleteForm({ initial, onSubmit, saving }) {
     idade: initial?.idade ?? "",
     peso_atual_kg: initial?.peso_atual_kg ?? "",
     peso_normal_kg: initial?.peso_normal_kg ?? "",
+    email: initial?.email || "",
+    contacto: initial?.contacto || "",
     dieta: initial?.dieta || "",
     agua_l: initial?.agua_l ?? "",
     suplementacao: initial?.suplementacao || "",
@@ -69,6 +71,8 @@ export function AthleteForm({ initial, onSubmit, saving }) {
           <Field label="Idade"><Input type="number" step="1" data-testid="athlete-age" value={v.idade} onChange={set("idade")} /></Field>
           <Field label="Peso atual (kg)"><Input type="number" step="0.1" data-testid="athlete-current-weight" value={v.peso_atual_kg} onChange={set("peso_atual_kg")} /></Field>
           <Field label="Peso normal (kg)"><Input type="number" step="0.1" data-testid="athlete-normal-weight" value={v.peso_normal_kg} onChange={set("peso_normal_kg")} /></Field>
+          <Field label="Email do atleta"><Input type="email" data-testid="athlete-email" value={v.email} onChange={set("email")} placeholder="atleta@exemplo.com" /></Field>
+          <Field label="Contacto (tel.)"><Input data-testid="athlete-contacto" value={v.contacto} onChange={set("contacto")} placeholder="+351 9XX XXX XXX" /></Field>
         </div>
       </Card>
 

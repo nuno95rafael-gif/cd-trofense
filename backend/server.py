@@ -12,6 +12,8 @@ from typing import Optional, Any
 
 import bcrypt
 import jwt
+import httpx
+import base64
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File, Form, Query, Header
 from fastapi.responses import Response as FastAPIResponse
 from starlette.middleware.cors import CORSMiddleware
@@ -133,6 +135,8 @@ class AthleteIn(BaseModel):
     idade: Optional[float] = None
     peso_normal_kg: Optional[float] = None
     peso_atual_kg: Optional[float] = None
+    email: Optional[str] = None
+    contacto: Optional[str] = None
     dieta: Optional[str] = None
     agua_l: Optional[float] = None
     suplementacao: Optional[str] = None
@@ -161,6 +165,87 @@ class WeighinIn(BaseModel):
 
 class GoalIn(BaseModel):
     bf_target_pct: float
+
+
+# ---------- Email (Emergent-managed Resend) ----------
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+
+
+class SendReportIn(BaseModel):
+    recipient_email: EmailStr
+    subject: Optional[str] = None
+    message: Optional[str] = None
+    pdf_base64: str  # PDF gerado no cliente (jsPDF) codificado em base64
+    filename: Optional[str] = "relatorio.pdf"
+
+
+@api.post("/athletes/{aid}/send-report")
+async def send_athlete_report(aid: str, body: SendReportIn, user: dict = Depends(require_editor)):
+    """Envia o relatório PDF do atleta por email via integração Resend gerida pela Emergent.
+    O PDF é gerado no cliente e enviado codificado em base64.
+    """
+    email_key = os.environ.get("EMERGENT_EMAIL_KEY")
+    from_name = os.environ.get("EMAIL_FROM_NAME", "CD Trofense · Departamento Médico")
+    if not email_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Envio de email não configurado. Peça ao administrador para adicionar EMERGENT_EMAIL_KEY ao backend."
+        )
+    athlete = await db.athletes.find_one({"id": aid}, {"_id": 0})
+    if not athlete:
+        raise HTTPException(status_code=404, detail="Atleta não encontrado")
+
+    subject = body.subject or f"Avaliação de composição corporal · {athlete.get('nome', 'Atleta')}"
+    msg_html = (body.message or "").replace("\n", "<br>") if body.message else ""
+
+    html_content = f"""
+    <div style="font-family: Helvetica, Arial, sans-serif; color:#1B2C5A; max-width: 640px; margin: 0 auto;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; background:#1B2C5A; color:#fff; padding: 20px;">
+        <tr>
+          <td style="padding: 16px 20px;">
+            <div style="font-size: 12px; letter-spacing: 2px; color:#DC1928; font-weight:bold;">CLUBE DESPORTIVO TROFENSE</div>
+            <div style="font-size: 18px; margin-top: 4px; font-weight:bold;">Departamento Médico · Composição Corporal</div>
+          </td>
+        </tr>
+      </table>
+      <div style="padding: 24px 20px; background:#f8f9fb;">
+        <p style="margin:0 0 12px 0;">Olá <b>{athlete.get('nome', '')}</b>,</p>
+        <p style="margin:0 0 12px 0;">Segue em anexo o teu relatório individual de composição corporal.</p>
+        {f'<div style="margin:16px 0; padding:12px; border-left:3px solid #DC1928; background:#fff; font-size:14px;">{msg_html}</div>' if msg_html else ''}
+        <p style="margin:16px 0 4px 0; font-size:12px; color:#666;">Enviado por {user.get('name', 'Departamento Médico')} — CD Trofense.</p>
+      </div>
+      <div style="text-align:center; padding: 12px; font-size: 11px; color:#999; font-style:italic;">
+        Desde 1930 · história, paixão e glória
+      </div>
+    </div>
+    """
+
+    payload = {
+        "to": [body.recipient_email],
+        "subject": subject,
+        "html": html_content,
+        "from_name": from_name,
+        "attachments": [{
+            "filename": body.filename or "relatorio.pdf",
+            "content": body.pdf_base64,
+        }],
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=45) as httpc:
+            resp = await httpc.post(
+                f"{EMAIL_BASE_URL}/api/v1/email/send",
+                headers={"X-Email-Key": email_key},
+                json=payload,
+            )
+        resp.raise_for_status()
+        return {"ok": True, "email_id": resp.json().get("id")}
+    except httpx.HTTPStatusError as e:
+        logger.error("send-report failed: %s %s", e.response.status_code, e.response.text)
+        raise HTTPException(status_code=502, detail=f"Falha no envio do email ({e.response.status_code})")
+    except Exception as e:
+        logger.exception("send-report error")
+        raise HTTPException(status_code=500, detail=f"Erro ao enviar email: {e}")
 
 
 # ---------- Auth ----------
@@ -233,6 +318,16 @@ async def toggle_user(user_id: str, active: bool = Query(...), current: dict = D
         raise HTTPException(status_code=400, detail="Não pode desativar-se a si próprio")
     r = await db.users.update_one({"id": user_id}, {"$set": {"active": active}})
     if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado")
+    return {"ok": True}
+
+
+@api.delete("/users/{user_id}")
+async def delete_user(user_id: str, current: dict = Depends(require_editor)):
+    if user_id == current["id"]:
+        raise HTTPException(status_code=400, detail="Não pode apagar-se a si próprio")
+    r = await db.users.delete_one({"id": user_id})
+    if r.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Utilizador não encontrado")
     return {"ok": True}
 

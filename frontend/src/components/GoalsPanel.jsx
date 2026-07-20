@@ -88,10 +88,22 @@ export function GoalsPanel({ athlete, evaluations, onSaved, isEditor }) {
       {goal && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Progresso · % MG</div>
-            <div className="num font-semibold">{progress.toFixed(0)}%</div>
+            <div>
+              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Progresso · % MG</div>
+              <div className="text-[11px] text-muted-foreground/70 mt-0.5">
+                Da 1.ª avaliação até à mais recente
+              </div>
+            </div>
+            <div className="num font-semibold">{evaluations.length < 2 ? "N/A" : `${progress.toFixed(0)}%`}</div>
           </div>
-          <Progress value={progress} className="h-3" />
+          {evaluations.length < 2 ? (
+            <div className="text-xs text-muted-foreground bg-secondary/40 border border-dashed rounded-md p-3">
+              O progresso mede a redução de % MG entre a primeira e a última avaliação em relação à % MG alvo.
+              Este atleta só tem <b>1 avaliação registada</b> — regista uma nova avaliação para começar a acompanhar a evolução.
+            </div>
+          ) : (
+            <Progress value={progress} className="h-3" />
+          )}
           <p className="text-xs text-muted-foreground mt-2">
             Objetivo definido em {new Date(goal.updated_at).toLocaleDateString("pt-PT")}
           </p>

@@ -18,9 +18,10 @@ import { GoalsPanel } from "@/components/GoalsPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Pencil, Trash2, Plus, FileDown } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Plus, FileDown, Mail } from "lucide-react";
 import { AthleteAvatar } from "@/components/AthleteAvatar";
 import { exportAthletePdf } from "@/lib/pdf";
+import { SendReportDialog } from "@/components/SendReportDialog";
 
 export default function AthleteProfile() {
   const { id } = useParams();
@@ -31,6 +32,7 @@ export default function AthleteProfile() {
   const [weighins, setWeighins] = useState([]);
   const [editOpen, setEditOpen] = useState(false);
   const [newEvalOpen, setNewEvalOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
 
   const reload = async () => {
     const a = await api.get(`/athletes/${id}`);
@@ -102,6 +104,16 @@ export default function AthleteProfile() {
             >
               <FileDown className="w-4 h-4" /> Descarregar PDF
             </Button>
+            {isEditor && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                data-testid="send-report-btn"
+                onClick={() => setSendOpen(true)}
+              >
+                <Mail className="w-4 h-4" /> Enviar por email
+              </Button>
+            )}
             {isEditor && (
               <>
                 <Dialog open={editOpen} onOpenChange={setEditOpen}>
@@ -242,6 +254,14 @@ export default function AthleteProfile() {
           <GoalsPanel athlete={athlete} evaluations={evals} onSaved={reload} isEditor={isEditor} />
         </TabsContent>
       </Tabs>
+
+      <SendReportDialog
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        athlete={athlete}
+        evals={evals}
+        weighins={weighins}
+      />
     </div>
   );
 }
