@@ -1,0 +1,80 @@
+{
+  "pdf": "/app/test_reports/pdf_downloads/wilson_v7.pdf",
+  "size_bytes": 311563,
+  "pages": [
+    {
+      "page": 1,
+      "width_pt": 595.28,
+      "height_pt": 841.89,
+      "orientation": "portrait",
+      "image_count": 2,
+      "text_excerpt": "CLUBE DESPORTIVO TROFENSE\n20 de julho de 2026 às 22:03\nDepartamento Médico · Composição Corporal\nRelatório · Wilson Oliveira\nWilson Oliveira\nDEF · Masculino · 22 anos · 182 cm · africano\nÚLTIMA AVALIAÇÃO\n11 de julho de 2026\nINDICADORES · Última avaliação\nPeso % MG (R&W) Massa Gorda Massa Magra Massa Muscular MM/MG IMC Soma 8 pregas\n84.5 kg 14.21% 9.79 kg 74.71 kg 38.15 kg 3.9 25.51 132 mm\nMÉTODOS DE CÁLCULO · % Massa Gorda\nReilly & Wallace Jackson-Pollock 7 Evans 7 Evans 3 Withers\n14.21% 13.46% 11.59% 11.75% 18.79%\nEVOLUÇÃO\nPeso (kg) % MG · Reilly & Wallace\n84.5 kg\nDados insuficientes\n84.2 kg\n",
+      "has_frente": false,
+      "has_perfil": false,
+      "has_costas": false,
+      "has_fotografias": false,
+      "png": "/app/test_reports/pdf_downloads/wilson_v7_page1.png"
+    },
+    {
+      "page": 2,
+      "width_pt": 595.28,
+      "height_pt": 841.89,
+      "orientation": "portrait",
+      "image_count": 1,
+      "text_excerpt": "CLUBE DESPORTIVO TROFENSE\n20 de julho de 2026 às 22:03\nDepartamento Médico · Composição Corporal\nHistórico · Wilson Oliveira\nREGISTO DE AVALIAÇÕES\nData Peso (kg) % MG (R&W) % MG (JP7) MG kg MM kg MM/MG IMC Soma 8 (mm)\n11/07/2026 84.5 14.21% 13.46% 9.79 74.71 3.9 25.51 132\nÚltima avaliação registada por Admin CD Trofense em 20/07/26, 16:59\nDesde 1930 · história, paixão e glória Página 2 de 3",
+      "has_frente": false,
+      "has_perfil": false,
+      "has_costas": false,
+      "has_fotografias": false,
+      "png": "/app/test_reports/pdf_downloads/wilson_v7_page2.png"
+    },
+    {
+      "page": 3,
+      "width_pt": 841.89,
+      "height_pt": 595.28,
+      "orientation": "landscape",
+      "image_count": 4,
+      "text_excerpt": "CLUBE DESPORTIVO TROFENSE\n20 de julho de 2026 às 22:03\nDepartamento Médico · Composição Corporal\nFotografias · Última avaliação\nREGISTO FOTOGRÁFICO\nData: 11 de julho de 2026\nFrente Perfil Costas\nDesde 1930 · história, paixão e glória Página 3 de 3",
+      "has_frente": true,
+      "has_perfil": true,
+      "has_costas": true,
+      "has_fotografias": true,
+      "png": "/app/test_reports/pdf_downloads/wilson_v7_page3.png"
+    }
+  ],
+  "num_pages": 3,
+  "page3_image_boxes": [
+    {
+      "x0": 28.3,
+      "y0": 538.6,
+      "x1": 73.7,
+      "y1": 583.9,
+      "w": 45.4,
+      "h": 45.4
+    },
+    {
+      "x0": 36.9,
+      "y0": 107.3,
+      "x1": 274.0,
+      "y1": 420.1,
+      "w": 237.2,
+      "h": 312.8
+    },
+    {
+      "x0": 302.4,
+      "y0": 107.3,
+      "x1": 539.5,
+      "y1": 420.1,
+      "w": 237.2,
+      "h": 312.8
+    },
+    {
+      "x0": 567.9,
+      "y0": 107.3,
+      "x1": 805.0,
+      "y1": 420.1,
+      "w": 237.2,
+      "h": 312.8
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 7 · RUNTIME validation of the fix 'as fotos estão desformatadas no relatório'. Logged in as admin@trofense.pt → dashboard → opened Wilson Oliveira → clicked 'Descarregar PDF' (data-testid=download-athlete-pdf) → saved wilson_v7.pdf (311KB). Inspected the PDF with pdfplumber + pypdfium2. ALL 4 REVIEW ITEMS PASS: (1) page 3 is LANDSCAPE 841.89×595.28 pt (≈297×210 mm), (2) 3 large photos are rendered side by side occupying almost the whole page — image boxes: 237.2×312.8 pt each at x0={36.9, 302.4, 567.9} y0=107.3..420.1, (3) captions 'Frente', 'Perfil', 'Costas' are visible below each photo (text extraction confirms), (4) pages 1 and 2 remain portrait 595.28×841.89 pt. Zero enormous white space; the 3 photos + captions fill the landscape canvas as designed.",
+  "tested_scope": ["frontend", "pdf-artifact"],
+  "passed": [
+    "Login flow admin@trofense.pt / Trofense2026! → dashboard OK ✓",
+    "Open Wilson Oliveira athlete detail page OK ✓",
+    "Button data-testid=download-athlete-pdf clickable, triggers PDF download ✓",
+    "PDF has 3 pages, 311KB ✓",
+    "Page 1 orientation = PORTRAIT (595.28×841.89 pt) ✓",
+    "Page 2 orientation = PORTRAIT (595.28×841.89 pt) ✓",
+    "Page 3 orientation = LANDSCAPE (841.89×595.28 pt) — matches doc.addPage('a4','landscape') at /app/frontend/src/lib/pdf.js:676 ✓",
+    "Page 3 contains 4 images (1 header logo 45×45 pt + 3 body photos 237.2×312.8 pt each) ✓",
+    "Page 3 photos are laid out horizontally with x0 values 36.9 / 302.4 / 567.9 → equal spacing across the 841.89 pt landscape width, each ~28% of page width, together consuming ~85% of the horizontal canvas ✓",
+    "Page 3 photo height 312.8 pt (~110 mm, close to the coded boxH cap of 113.9 mm) → photos are large and dominate the page vertically ✓",
+    "Page 3 text contains 'Frente', 'Perfil', 'Costas' (captions rendered below each photo) ✓",
+    "Page 3 shows 'Fotografias · Última avaliação' header + 'REGISTO FOTOGRÁFICO' section + 'Data: 11 de julho de 2026' ✓",
+    "Rendered PNG at /app/test_reports/pdf_downloads/wilson_v7_page3.png visually confirms 3 body photos (frontal / lateral / back) with correct captions and no wasted white space — layout matches the LANDSCAPE fix design ✓"
+  ],
+  "failed": [],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/pdf_downloads/wilson_v7.pdf",
+    "/app/test_reports/pdf_downloads/wilson_v7_page1.png",
+    "/app/test_reports/pdf_downloads/wilson_v7_page2.png",
+    "/app/test_reports/pdf_downloads/wilson_v7_page3.png",
+    "/app/test_reports/pdf_downloads/verify_v7.py",
+    "/app/test_reports/pdf_downloads/verify_v7.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fix at /app/frontend/src/lib/pdf.js:676 (doc.addPage('a4','landscape')) validated at RUNTIME. Layout math (boxW = (297-24-16)/3 ≈ 85.67 mm, boxH = min(132, 85.67*1.33) = 113.9 mm) produces the intended 3-photo landscape layout — confirmed by extracted PDF geometry: 237.2×312.8 pt per photo box (≈83.7×110.3 mm, marginally different from spec due to fit-contain honouring the actual 3:4 image aspect, expected behaviour)."
+  ],
+  "updated_files": [],
+  "success_rate": {"frontend_ui": "100% (login + navigation + download all OK)", "pdf_visual": "100% (4/4 review items pass: page-3 landscape ✓, 3 large side-by-side photos ✓, captions Frente/Perfil/Costas ✓, pages 1&2 portrait ✓)"},
+  "test_credentials": "admin@trofense.pt / Trofense2026! (from /app/memory/test_credentials.md) — worked correctly.",
+  "seed_data_creation": "None. Read-only test. Fresh artifacts stored at /app/test_reports/pdf_downloads/wilson_v7.*",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Wilson Oliveira athlete id = d191ac87-61cb-4e64-9bf9-bd5a3d699494. The landscape-photos-page fix (pdf.js:676) is now fully validated at runtime. If a future task needs to re-inspect the layout, the verify_v7.py script is a good template: it pulls page dimensions + image bounding boxes via pdfplumber and renders PNGs via pypdfium2.",
+  "rca of the issue": "Original bug 'fotos desformatadas no relatório' was that the photos on page 3 of the individual athlete PDF were being squeezed into a portrait A4 (~85mm width per box was fine but height was constrained by the shorter portrait canvas, leaving oversized white margins and small photos). The fix changed page 3 to LANDSCAPE via doc.addPage('a4','landscape') and expanded boxW to (297-24-16)/3 ≈ 85.67 mm (equivalent to portrait per-column, but now with much more vertical room — availH ≈ 132 mm), with boxH capped at min(availH, boxW*1.33) = 113.9 mm so the 3:4 photo aspect is respected. Runtime verification confirms: page 3 is 841.89×595.28 pt landscape, 3 body-photo boxes at (36.9,107.3), (302.4,107.3), (567.9,107.3) each 237.2×312.8 pt (~83.7×110.3 mm), captions Frente/Perfil/Costas below at y≈438, filling ~85% of horizontal canvas and ~54% of vertical canvas — no excessive white space, photos are large and well-formatted."
+}

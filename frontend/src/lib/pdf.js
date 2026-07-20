@@ -672,8 +672,12 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
       };
       const evPhotos = ["frontal", "perfil", "costas"].map(pickPhoto);
       if (evPhotos.some(Boolean)) {
-        doc.addPage();
+        // Página em LANDSCAPE para dar espaço às 3 fotos lado a lado
+        doc.addPage("a4", "landscape");
         drawHeader(doc, `Fotografias · Última avaliação`, logo);
+        const lPageW = doc.internal.pageSize.getWidth();  // 297mm em landscape
+        const lPageH = doc.internal.pageSize.getHeight(); // 210mm em landscape
+
         doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
         doc.setTextColor(...CLUB_NAVY);
@@ -685,16 +689,19 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
         doc.setTextColor(80);
         doc.text(`Data: ${new Date(last.date).toLocaleDateString("pt-PT", { day: "2-digit", month: "long", year: "numeric" })}`, 14, 52);
 
-        const gap = 6;
-        const boxW = (pageW - 28 - gap * 2) / 3;
-        const boxH = boxW * 1.33; // caixa 3:4 (retrato)
+        const marginX = 12;
+        const gap = 8;
+        const boxW = (lPageW - marginX * 2 - gap * 2) / 3;
+        // Altura disponível: entre y=58 e footer (bottom - 15) → 210 - 58 - 20 = 132mm
+        const availH = lPageH - 58 - 22;
+        // Aspect natural de fotos corporais: 3:4 → h = w * 1.33. Se a caixa for maior, respeitamos o menor.
+        const boxH = Math.min(availH, boxW * 1.33);
         const y = 60;
         const labels = { frontal: "Frente", perfil: "Perfil", costas: "Costas" };
         const order = ["frontal", "perfil", "costas"];
         for (let i = 0; i < order.length; i++) {
           const p = evPhotos[i];
-          const x = 14 + (boxW + gap) * i;
-          // Caixa navy claro (fundo)
+          const x = marginX + (boxW + gap) * i;
           doc.setFillColor(245, 246, 249);
           doc.setDrawColor(...CLUB_NAVY);
           doc.setLineWidth(0.4);
@@ -710,15 +717,15 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
             }
           } else {
             doc.setTextColor(160);
-            doc.setFontSize(9);
+            doc.setFontSize(11);
             doc.setFont("helvetica", "italic");
             doc.text("Sem foto", x + boxW / 2, y + boxH / 2, { align: "center" });
           }
           // Legenda por baixo
-          doc.setFontSize(10);
+          doc.setFontSize(11);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(...CLUB_NAVY);
-          doc.text(labels[order[i]], x + boxW / 2, y + boxH + 7, { align: "center" });
+          doc.text(labels[order[i]], x + boxW / 2, y + boxH + 8, { align: "center" });
         }
       }
     }
