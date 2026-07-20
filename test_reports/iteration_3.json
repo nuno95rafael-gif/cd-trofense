@@ -1,0 +1,51 @@
+{
+  "summary": "Frontend-only E2E validation of the new 'Objetivos de Equipa' sidebar feature (P2). All 11 acceptance criteria from the review request PASSED end-to-end: sidebar link ordering, routing, 6 stat cards with correct counts summing to 18, table shape (18 rows, 8 columns), colored status pills, descending priority sort, click-to-filter + dropdown filter + search filter, row click navigation to athlete profile, granular status pill + directional Δ on GoalsPanel, and live recomputation of team goal status after saving a new % MG target.",
+  "tested_scope": ["frontend", "integration"],
+  "passed": [
+    "Login admin@trofense.pt / Trofense2026! -> Dashboard OK",
+    "Sidebar order (editor): Dashboard -> Objetivos de Equipa (nav-team-goals) -> Relatório Mensal -> Utilizadores -> Backup. Order and testid match spec.",
+    "Click nav-team-goals navigates to /objetivos-equipa and renders team-goals-page",
+    "6 stat cards present with counts: prioritario=0, em_progresso=1, quase_la=12, atingido=5, sem_objetivo=0, todos=18 (sum of 5 status buckets = 18, matches team size)",
+    "Table renders exactly 18 rows (data-testid='team-goal-row-{Nome-Com-Hifen}')",
+    "Columns present: Atleta, Estado, Peso atual, % MG atual, % MG alvo, Peso alvo, Δ peso, Progresso",
+    "Each row shows a colored status pill (red / amber / lime / emerald / muted) via GoalStatusPill",
+    "Sort order (descending priority) verified: Wilson Oliveira (Em progresso) -> 12x Quase lá -> 5x Atingido. Matches STATUS_PRIORITY (prioritario=4 > em_progresso=3 > quase_la=2 > atingido=1 > sem_objetivo=-1).",
+    "Click stat-quase_la filters table to 12 rows; click stat-todos restores 18",
+    "Search 'Wilson' via team-goals-search reduces table to 1 row: Wilson Oliveira · DEF · EM PROGRESSO · 84.2 kg · 14.21% · 9.5% · 79.8 kg · 4.4 kg · 56% (matches spec — Wilson needs to lose ~4.4 kg -> Em progresso)",
+    "Click on Wilson row navigates to /atletas/{uuid} (athlete profile)",
+    "On profile tab-objetivos: data-testid=goal-status-pill shows 'Em progresso' next to 'Objetivo de % Massa Gorda' title and 'Diferença: 4.4 kg a perder' line is displayed with red down-arrow",
+    "Saving new target (12.5%) via save-goal-btn triggers 'Objetivo guardado' toast",
+    "After navigating back to /objetivos-equipa, Wilson row now shows QUASE LÁ · 82.6 kg · 1.6 kg · 84% (status recomputed correctly from the new target: peso_alvo = 84.2 * (100-14.21) / (100-12.5) = 82.6 kg -> |Δ|=1.6 kg -> Quase lá)",
+    "Restored Wilson's target back to 9.5% (cleanup)",
+    "No pageerror events; console only shows the pre-existing benign warnings (Radix Dialog aria-describedby + Recharts width/height=-1) already noted in iteration_2"
+  ],
+  "failed": [],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "TeamGoals -> AthleteProfile (Peso atual/Peso alvo)", "issues": ["Small numeric inconsistency by design: on /objetivos-equipa Wilson's Peso atual is 84.2 kg (source = display_weight from last weighing), while on the profile GoalsPanel it shows 84.5 kg (source = last evaluation's peso_kg). This produces slightly different peso_alvo values (79.8 kg vs 80.1 kg). Not a bug per current data model, but worth aligning the source for consistency (recommend both use the same 'current weight' definition)."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_3.json"],
+  "action_items": [
+    "OPTIONAL consistency fix: unify 'current weight' source between TeamGoals row and GoalsPanel (both should use either display_weight or last evaluation peso_kg, not different ones).",
+    "OPTIONAL: also render nav-team-goals for a viewer role (spec asks 'para editor como para viewer'). Layout.jsx has editorOnly=false so the link IS available to viewers, but this was not exercised because only the admin account exists — main agent can self-verify by creating a viewer via /api/users."
+  ],
+  "critical_code_review_comments": [
+    "TeamGoals.jsx (191 LOC) is well-scoped, memoized (rows / filtered / counts), and testable. Good use of data-testid on every interactive element.",
+    "computeGoalStatus in lib/goalStatus.js is pure, well-documented, correctly handles null inputs, and matches the formula from the spec exactly (peso_alvo = w * (100-bf)/(100-tgt)). Thresholds 0.5/2/5 kg match request.",
+    "GoalStatusPill is reused between TeamGoals table and GoalsPanel — good DRY.",
+    "Minor: sort tiebreaker is not stable — inside the same status bucket the row order depends on API return order. Consider secondary sort by |delta| desc or by name asc for deterministic UX.",
+    "Minor: progress bar formula '100 - (|Δ|/10)*100' saturates at |Δ|=10 kg — fine for football team but consider clamping the divisor to |initialDelta| for true % of journey.",
+    "Minor: filter Select has an option 'sem_dados' but the stat card grid does not expose a 'stat-sem_dados' card (there's only 5 status cards + 'Todos'). Not tested but could confuse users if any athlete ever falls into that bucket."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100% (11/11 acceptance criteria)"},
+  "test_credentials": "admin@trofense.pt / Trofense2026! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Temporarily set Wilson Oliveira's bf_target_pct to 12.5 then restored it to 9.5. Final state matches original seed (all 18 athletes at 9.5%).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature 'Objetivos de Equipa' is production-ready. Formula and thresholds verified live (Wilson at 14.21% MG needs ~4.4 kg -> Em progresso; after setting target=12.5% -> 1.6 kg -> Quase lá). If retesting viewer visibility of nav-team-goals, create a viewer user via POST /api/users first — spec explicitly requires it to be visible to non-editors as well and Layout.jsx already has editorOnly=false so it should work."
+}

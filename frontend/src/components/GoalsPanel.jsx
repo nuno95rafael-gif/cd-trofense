@@ -5,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { GoalStatusPill } from "@/components/GoalStatusPill";
+import { computeGoalStatus, STATUS_STYLES } from "@/lib/goalStatus";
+import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { toast } from "sonner";
 
 export function GoalsPanel({ athlete, evaluations, onSaved, isEditor }) {
@@ -16,15 +19,12 @@ export function GoalsPanel({ athlete, evaluations, onSaved, isEditor }) {
   const currentBf = last?.metrics?.rw;
   const currentWeight = last?.peso_kg;
 
-  // peso alvo = peso * (100 - bf) / (100 - bf_target)
-  let targetWeight = null;
-  if (currentWeight && currentBf != null && goal?.bf_target_pct != null) {
-    targetWeight = +(currentWeight * (100 - currentBf) / (100 - goal.bf_target_pct)).toFixed(1);
-  }
+  const info = computeGoalStatus({ currentWeight, currentBf, goal });
+  const targetWeight = info.targetWeight;
+  const style = STATUS_STYLES[info.status] || STATUS_STYLES.sem_dados;
 
   const progress = (() => {
     if (!goal || currentBf == null) return 0;
-    // 0% = starting BF, 100% = target BF (menor)
     const start = evaluations[0]?.metrics?.rw ?? currentBf;
     if (start <= goal.bf_target_pct) return 100;
     const p = ((start - currentBf) / (start - goal.bf_target_pct)) * 100;
@@ -47,7 +47,10 @@ export function GoalsPanel({ athlete, evaluations, onSaved, isEditor }) {
   return (
     <div className="space-y-6">
       <Card className="p-6">
-        <h3 className="font-display text-xl font-bold mb-4">Objetivo de % Massa Gorda</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h3 className="font-display text-xl font-bold">Objetivo de % Massa Gorda</h3>
+          <GoalStatusPill status={info.status} label={info.label} testid="goal-status-pill" />
+        </div>
         <div className="grid md:grid-cols-4 gap-4 items-end">
           <div>
             <Label className="text-xs">% MG alvo</Label>
@@ -66,6 +69,15 @@ export function GoalsPanel({ athlete, evaluations, onSaved, isEditor }) {
             <div className="num text-3xl font-bold text-primary">{targetWeight ?? "—"} kg</div>
           </div>
         </div>
+        {info.delta != null && (
+          <div className="mt-4 flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Diferença:</span>
+            <span className={`num font-semibold inline-flex items-center gap-1 ${info.direction === "perder" ? "text-red-500" : info.direction === "ganhar" ? "text-blue-500" : "text-emerald-500"}`}>
+              {info.direction === "perder" ? <ArrowDown className="w-3.5 h-3.5" /> : info.direction === "ganhar" ? <ArrowUp className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
+              {info.absDelta} kg {info.direction === "perder" ? "a perder" : info.direction === "ganhar" ? "a ganhar" : "no alvo"}
+            </span>
+          </div>
+        )}
         {isEditor && (
           <Button className="mt-4" onClick={save} disabled={saving || !target} data-testid="save-goal-btn">
             {saving ? "A guardar..." : "Guardar objetivo"}
@@ -76,7 +88,7 @@ export function GoalsPanel({ athlete, evaluations, onSaved, isEditor }) {
       {goal && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Progresso</div>
+            <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Progresso · % MG</div>
             <div className="num font-semibold">{progress.toFixed(0)}%</div>
           </div>
           <Progress value={progress} className="h-3" />

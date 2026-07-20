@@ -2,10 +2,11 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Users, FileBarChart, Database, Sun, Moon, LogOut, Dumbbell } from "lucide-react";
+import { LayoutDashboard, Users, FileBarChart, Database, Sun, Moon, LogOut, Dumbbell, Target } from "lucide-react";
 
 const links = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard", editorOnly: false },
+  { to: "/objetivos-equipa", label: "Objetivos de Equipa", icon: Target, testid: "nav-team-goals", editorOnly: false },
   { to: "/relatorio", label: "Relatório Mensal", icon: FileBarChart, testid: "nav-report", editorOnly: false },
   { to: "/utilizadores", label: "Utilizadores", icon: Users, testid: "nav-users", editorOnly: true },
   { to: "/backup", label: "Backup", icon: Database, testid: "nav-backup", editorOnly: true },
