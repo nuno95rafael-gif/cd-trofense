@@ -1,0 +1,61 @@
+{
+  "summary": "Iteration 6 · Retest of PDF visual regression after Σ→'Soma' / Δ→'Dif.' + 'mm' unit fixes. Downloaded the Wilson Oliveira individual PDF, dashboard PDF and team-goals PDF via Playwright and extracted text/rendered pages with pdfplumber+pypdfium2. ALL PRIMARY REVIEW ITEMS PASS: (1) page-1 INDICADORES now shows 'Soma 8 pregas' header + '132 mm' value, (2) NO Σ or Δ glyphs anywhere in the 3 PDFs (extraction confirms zero occurrences), (3) EVOLUÇÃO heading no longer collides with the internal 'Peso (kg)' chart title (chartY-6 vs chartY-2 leaves ~4pt gap plus underline in between), (4) Dashboard PDF header shows 'Soma 8 (mm)', (5) Team Goals PDF shows 'Dif. peso' column header + values, (6) previous iteration-5 wins still pass (chart↔OBJETIVO overlap, photo aspect ratio, page-2 'Soma 8 (mm)' header).",
+  "tested_scope": ["frontend", "pdf-artifact"],
+  "passed": [
+    "PDF individual page-1 INDICADORES: 'Soma 8 pregas' header + '132 mm' value ✓ (was the P1 regression from iteration-5, NOW FIXED at pdf.js:476).",
+    "PDF individual: 0 occurrences of 'Σ' and 0 occurrences of 'Δ' across all 3 pages (verified via pdfplumber text extraction). ✓",
+    "PDF individual page-1 EVOLUÇÃO section heading no longer overlaps with drawLineChart internal 'Peso (kg)' title. 'EVOLUÇÃO' at chartY-6 with 1.5pt underline at chartY-4.5, then 'Peso (kg)' internal title at chartY-2 → visually distinct on two lines. ✓",
+    "PDF individual page-1 OBJETIVO table header 'Dif. peso' + value '4.4 kg a perder' ✓",
+    "PDF individual page-2 historic table header 'Soma 8 (mm)' ✓ (regression from iteration-5 kept intact).",
+    "PDF individual page-3 photos: 3 boxes rendered with photos preserving aspect ratio. ✓ (from iteration-5).",
+    "Dashboard PDF: 'Soma 8 (mm)' column header + '43 mm', '72 mm', ... values ✓. No Σ present.",
+    "Team Goals PDF: 'Dif. peso' column header + values (4.4 kg, 1.5 kg …) ✓. No Δ present.",
+    "No garbled '£' character replacing Σ anywhere in the Wilson PDF ✓."
+  ],
+  "failed": [],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "PDF Team Goals (Objetivos de Equipa) · coluna 'Direção'",
+        "issues": [
+          "Pre-existing font-glyph issue outside current review scope: the Direção column uses Unicode arrows '↑' / '↓' at /app/frontend/src/lib/pdf.js:208 which Helvetica does NOT support, so cells render as garbled '!\" A perder' and '!' A ganhar' with per-character CID artifacts. Same class of bug as the Σ/Δ issue just fixed. Suggested fix: replace ↑/↓ with plain text ('▲ A ganhar' → 'A ganhar (subir)' or similar) OR register a Unicode TTF via doc.addFileToVFS / doc.addFont."
+        ]
+      },
+      {
+        "screen": "PDF individual · EVOLUÇÃO block spacing (minor)",
+        "issues": [
+          "'EVOLUÇÃO' section heading and internal chart title 'Peso (kg)' are now on separate lines but still visually close (~4pt gap + underline). Not overlapping (fix applied and validated), but if the designer wants tighter aesthetic, the internal per-chart 'Peso (kg)' / '% MG · Reilly & Wallace' titles are somewhat redundant with the section heading."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/pdf_downloads/wilson_report_v6.pdf",
+    "/app/test_reports/pdf_downloads/wilson_v6_page1.png",
+    "/app/test_reports/pdf_downloads/wilson_v6_page2.png",
+    "/app/test_reports/pdf_downloads/wilson_v6_page3.png",
+    "/app/test_reports/pdf_downloads/dashboard_v6.pdf",
+    "/app/test_reports/pdf_downloads/teamgoals_v6.pdf",
+    "/app/test_reports/pdf_downloads/teamgoals_v6_page1.png",
+    "/app/test_reports/pdf_downloads/verify_v6.py"
+  ],
+  "action_items": [
+    "OPTIONAL (out of scope of this retest): Replace Unicode arrows '↑' / '↓' at /app/frontend/src/lib/pdf.js:208 (Team Goals PDF Direção column) with plain-ASCII text or register a Unicode TTF. Currently the cells render as garbled '!\" A perder' / '!' A ganhar'.",
+    "OPTIONAL (code quality, from iteration-5): Split /app/frontend/src/lib/pdf.js (747 lines) into /lib/pdf/{athlete,dashboard,teamGoals,common}.js; introduce a formatSoma8() helper so future divergences don't recur.",
+    "OPTIONAL: register a Unicode TTF (e.g., DejaVuSans) with jspdf via doc.addFileToVFS/doc.addFont so future glyph incompatibilities are avoided."
+  ],
+  "critical_code_review_comments": [
+    "The Σ/Δ→text substitution has been applied consistently (pdf.js:137,147,197-198,208 Dif. peso, 476 Soma 8 pregas 132 mm, 530 EVOLUÇÃO heading shift, 560 Dif. peso, 589 Soma 8 (mm), 631 Dif. Peso/Dif. % MG/Dif. IMC). Only leftover font-glyph risk is the '↑ ↓' arrows in the Direção column of the Team Goals PDF — same root cause (Helvetica missing Unicode glyphs)."
+  ],
+  "updated_files": [],
+  "success_rate": {"frontend_ui": "n/a (UI already validated in iteration-5)", "pdf_visual": "100% (6/6 review checks: page-1 INDICADORES mm ✓, EVOLUÇÃO no overlap ✓, no Σ/Δ ✓, Dashboard Soma 8 (mm) ✓, Team Goals Dif. peso ✓, iteration-5 items intact ✓)"},
+  "test_credentials": "admin@trofense.pt / Trofense2026! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. Read-only tests. Fresh PDFs stored at /app/test_reports/pdf_downloads/*_v6.*",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All review items from the request are now GREEN. Wilson id = d191ac87-61cb-4e64-9bf9-bd5a3d699494. If working on the Direção arrows leftover issue: repro is /objetivos-equipa → 'Descarregar PDF' → open pages 1-2 → Direção column shows garbled '!\" A perder' / '!' A ganhar'. Fix location: /app/frontend/src/lib/pdf.js:208.",
+  "rca of the issue": "The iteration-5 P1 (Soma 8 without 'mm') is fully resolved: pdf.js:476 now emits `${Math.round(last.metrics.soma8)} mm` when non-null. The EVOLUÇÃO overlap is resolved by moving the section heading to chartY-6 (was -3) while drawLineChart's internal title stays at chartY-2, adding ~4pt vertical separation plus a 1.5pt underline. All Σ→'Soma' and Δ→'Dif.' substitutions were applied at pdf.js lines 137,147,197-198,476,560,589,631 — text extraction with pdfplumber confirms 0 occurrences of Σ and 0 occurrences of Δ across the individual + dashboard + team-goals PDFs."
+}

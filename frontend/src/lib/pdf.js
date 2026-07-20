@@ -134,7 +134,7 @@ export async function exportDashboardPdf(athletes, stats) {
   });
 
   // Tabela do plantel — cabeçalho navy, respiração generosa, alternância suave
-  const head = [["Nome", "Posição", "Idade", "Alt. (cm)", "Peso (kg)", "% MG (R&W)", "Σ 8 pregas", "% MM", "MM/MG", "IMC"]];
+  const head = [["Nome", "Posição", "Idade", "Alt. (cm)", "Peso (kg)", "% MG (R&W)", "Soma 8 (mm)", "% MM", "MM/MG", "IMC"]];
   const body = athletes.map((a) => {
     const m = a.last_metrics || {};
     return [
@@ -194,8 +194,8 @@ export async function exportTeamGoalsPdf(rows, counts) {
 
   const pageW = doc.internal.pageSize.getWidth();
 
-  // Tabela — mesmas colunas que aparecem no ecrã da app
-  const head = [["Atleta", "Posição", "Estado", "Peso atual", "% MG atual", "% MG alvo", "Peso alvo", "Δ peso", "Direção"]];
+  // Tabela — mesmas colunas que aparecem no ecrã da app (símbolos Σ/Δ substituídos por texto por incompatibilidade da fonte Helvetica)
+  const head = [["Atleta", "Posição", "Estado", "Peso atual", "% MG atual", "% MG alvo", "Peso alvo", "Dif. peso", "Direção"]];
   const body = rows.map((r) => [
     r.nome,
     r.posicao || "—",
@@ -473,7 +473,7 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
     ["Massa Muscular", `${last.metrics?.muscle_mass_kg ?? "—"} kg`],
     ["MM/MG", `${last.metrics?.mm_mg_ratio ?? "—"}`],
     ["IMC", `${last.metrics?.imc ?? "—"}`],
-    ["Σ 8 pregas", `${last.metrics?.soma8 != null ? Math.round(last.metrics.soma8) : "—"}`],
+    ["Soma 8 pregas", `${last.metrics?.soma8 != null ? `${Math.round(last.metrics.soma8)} mm` : "—"}`],
   ] : [];
   if (kpis.length) {
     autoTable(doc, {
@@ -522,14 +522,14 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
     });
   }
 
-  // Título da secção evolução
-  const chartY = (doc.lastAutoTable?.finalY ?? kpiY) + 14;
+  // Título da secção evolução — deslocado mais acima para não colidir com os títulos internos dos gráficos
+  const chartY = (doc.lastAutoTable?.finalY ?? kpiY) + 16;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...CLUB_NAVY);
-  doc.text("EVOLUÇÃO", 14, chartY - 3);
+  doc.text("EVOLUÇÃO", 14, chartY - 6);
   doc.setDrawColor(...CLUB_NAVY);
-  doc.line(14, chartY - 1.5, 30, chartY - 1.5);
+  doc.line(14, chartY - 4.5, 30, chartY - 4.5);
   const halfW = (pageW - 28 - 6) / 2;
   const chartH = 36;
   const pesoPoints = [
@@ -557,7 +557,7 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
     autoTable(doc, {
       startY: goalY,
       theme: "plain",
-      head: [["% MG atual", "% MG alvo", "Peso atual", "Peso alvo", "Δ peso"]],
+      head: [["% MG atual", "% MG alvo", "Peso atual", "Peso alvo", "Dif. peso"]],
       body: [[
         `${currentBf}%`,
         `${targetBf}%`,
@@ -586,7 +586,7 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
   doc.text("REGISTO DE AVALIAÇÕES", 14, 46);
   doc.setDrawColor(...CLUB_NAVY);
   doc.line(14, 47.5, 65, 47.5);
-  const histHead = [["Data", "Peso (kg)", "% MG (R&W)", "% MG (JP7)", "MG kg", "MM kg", "MM/MG", "IMC", "Σ 8 (mm)"]];
+  const histHead = [["Data", "Peso (kg)", "% MG (R&W)", "% MG (JP7)", "MG kg", "MM kg", "MM/MG", "IMC", "Soma 8 (mm)"]];
   const histBody = [...evals].reverse().map((e) => {
     const m = e.metrics || {};
     return [
@@ -628,7 +628,7 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
     autoTable(doc, {
       startY: y,
       theme: "plain",
-      head: [["Da 1.ª avaliação", "Até à última", "Δ Peso", "Δ % MG", "Δ IMC"]],
+      head: [["Da 1.ª avaliação", "Até à última", "Dif. Peso", "Dif. % MG", "Dif. IMC"]],
       body: [[
         new Date(first.date).toLocaleDateString("pt-PT"),
         new Date(last.date).toLocaleDateString("pt-PT"),
