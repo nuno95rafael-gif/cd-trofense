@@ -2,42 +2,84 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { computeGoalStatus } from "@/lib/goalStatus";
 import { rwBand, soma8Band, percMMBand, mmMgBand, imcBand } from "@/lib/formulas";
+import logoUrl from "@/assets/cdt-logo-small.png";
 
-/** Cabeçalho comum em todas as páginas do PDF. */
-function drawHeader(doc, subtitle) {
-  const pageW = doc.internal.pageSize.getWidth();
-  // Faixa verde no topo (cor primária do clube)
-  doc.setFillColor(0, 122, 82);
-  doc.rect(0, 0, pageW, 22, "F");
-  doc.setTextColor(255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("CD TROFENSE", 14, 10);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("Departamento Médico · Composição Corporal", 14, 16);
-  // Data topo direito
-  doc.setFontSize(9);
-  const now = new Date().toLocaleString("pt-PT", { dateStyle: "long", timeStyle: "short" });
-  doc.text(now, pageW - 14, 12, { align: "right" });
-  // Subtítulo
-  doc.setTextColor(20);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text(subtitle, 14, 32);
+// Cores institucionais do CD Trofense (RGB) — sincronizadas com index.css.
+const CLUB_RED = [220, 25, 40];
+const CLUB_NAVY = [27, 44, 90];
+const CLUB_YELLOW = [255, 210, 0];
+
+// Cache do emblema como data URL (evita recarregar em cada exportação).
+let _logoDataUrl = null;
+async function getLogoDataUrl() {
+  if (_logoDataUrl) return _logoDataUrl;
+  try {
+    const res = await fetch(logoUrl);
+    const blob = await res.blob();
+    _logoDataUrl = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  } catch (e) {
+    _logoDataUrl = null;
+  }
+  return _logoDataUrl;
 }
 
-/** Rodapé com paginação. */
+/** Cabeçalho comum em todas as páginas do PDF (com emblema oficial). */
+function drawHeader(doc, subtitle, logoData) {
+  const pageW = doc.internal.pageSize.getWidth();
+  // Faixa vermelha institucional
+  doc.setFillColor(...CLUB_RED);
+  doc.rect(0, 0, pageW, 22, "F");
+  // Faixa amarela fina abaixo
+  doc.setFillColor(...CLUB_YELLOW);
+  doc.rect(0, 22, pageW, 1.2, "F");
+  // Emblema no canto (se disponível)
+  if (logoData) {
+    try { doc.addImage(logoData, "PNG", 8, 3.5, 15, 15); } catch { /* ignore */ }
+  }
+  // Título
+  doc.setTextColor(255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("CLUBE DESPORTIVO TROFENSE", 27, 10);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text("Departamento Médico · Composição Corporal", 27, 15.5);
+  // Data topo direito
+  doc.setFontSize(8.5);
+  const now = new Date().toLocaleString("pt-PT", { dateStyle: "long", timeStyle: "short" });
+  doc.text(now, pageW - 8, 12, { align: "right" });
+  // Subtítulo
+  doc.setTextColor(...CLUB_NAVY);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text(subtitle, 14, 33);
+  // Linha decorativa navy
+  doc.setDrawColor(...CLUB_NAVY);
+  doc.setLineWidth(0.4);
+  doc.line(14, 36, pageW - 14, 36);
+}
+
+/** Rodapé com paginação + assinatura do clube. */
 function drawFooter(doc) {
   const pages = doc.getNumberOfPages();
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
-    doc.setFontSize(8);
+    doc.setDrawColor(...CLUB_RED);
+    doc.setLineWidth(0.6);
+    doc.line(14, pageH - 12, pageW - 14, pageH - 12);
+    doc.setFontSize(7.5);
     doc.setTextColor(120);
-    doc.text(`Página ${i} de ${pages}`, pageW - 14, pageH - 8, { align: "right" });
-    doc.text("CD Trofense · Composição Corporal", 14, pageH - 8);
+    doc.setFont("helvetica", "italic");
+    doc.text("Desde 1930 · história, paixão e glória", 14, pageH - 6);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Página ${i} de ${pages}`, pageW - 14, pageH - 6, { align: "right" });
   }
 }
 
@@ -62,9 +104,10 @@ function statusRgb(status) {
 }
 
 /** PDF do Dashboard: KPIs + Plantel completo por atleta. */
-export function exportDashboardPdf(athletes, stats) {
+export async function exportDashboardPdf(athletes, stats) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  drawHeader(doc, "Dashboard · Plantel");
+  const logo = await getLogoDataUrl();
+  drawHeader(doc, "Dashboard · Plantel", logo);
 
   // KPIs em linha
   const kpis = [
@@ -75,12 +118,12 @@ export function exportDashboardPdf(athletes, stats) {
     ["Atenção / Alto", stats ? `${stats.atencao} / ${stats.alto}` : "—"],
   ];
   autoTable(doc, {
-    startY: 38,
+    startY: 40,
     theme: "grid",
     head: [kpis.map((k) => k[0])],
     body: [kpis.map((k) => k[1])],
     styles: { halign: "center", fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8 },
+    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 8 },
     bodyStyles: { fontStyle: "bold", fontSize: 12 },
   });
 
@@ -108,7 +151,7 @@ export function exportDashboardPdf(athletes, stats) {
     startY: doc.lastAutoTable.finalY + 6,
     theme: "striped",
     styles: { fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: [0, 122, 82], textColor: 255, fontSize: 9 },
+    headStyles: { fillColor: CLUB_RED, textColor: 255, fontSize: 9 },
     columnStyles: {
       0: { fontStyle: "bold", cellWidth: 45 },
       2: { halign: "center" },
@@ -138,9 +181,10 @@ export function exportDashboardPdf(athletes, stats) {
 }
 
 /** PDF dos Objetivos de Equipa: sumário + tabela priorizada. */
-export function exportTeamGoalsPdf(rows, counts) {
+export async function exportTeamGoalsPdf(rows, counts) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  drawHeader(doc, "Objetivos de Equipa · Ajustes de peso");
+  const logo = await getLogoDataUrl();
+  drawHeader(doc, "Objetivos de Equipa · Ajustes de peso", logo);
 
   // Sumário de estados
   const summary = [
@@ -152,12 +196,12 @@ export function exportTeamGoalsPdf(rows, counts) {
     ["Total", (counts.prioritario ?? 0) + (counts.em_progresso ?? 0) + (counts.quase_la ?? 0) + (counts.atingido ?? 0) + (counts.sem_objetivo ?? 0) + (counts.sem_dados ?? 0)],
   ];
   autoTable(doc, {
-    startY: 38,
+    startY: 40,
     theme: "grid",
     head: [summary.map((k) => k[0])],
     body: [summary.map((k) => String(k[1] ?? 0))],
     styles: { halign: "center", fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8 },
+    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 8 },
     bodyStyles: { fontStyle: "bold", fontSize: 12 },
     didParseCell: (data) => {
       if (data.section !== "body") return;
@@ -191,7 +235,7 @@ export function exportTeamGoalsPdf(rows, counts) {
     startY: doc.lastAutoTable.finalY + 6,
     theme: "striped",
     styles: { fontSize: 9, cellPadding: 2.5 },
-    headStyles: { fillColor: [0, 122, 82], textColor: 255, fontSize: 9 },
+    headStyles: { fillColor: CLUB_RED, textColor: 255, fontSize: 9 },
     columnStyles: {
       0: { fontStyle: "bold", cellWidth: 45 },
       1: { cellWidth: 20 },

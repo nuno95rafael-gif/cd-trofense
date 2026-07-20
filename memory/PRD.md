@@ -53,8 +53,9 @@ Plataforma web (React + FastAPI + MongoDB) para o departamento médico do CD Tro
 - [x] Fix: crash de compilação em `EvaluationForm.jsx`
 - [x] **Objetivos de Equipa** — nova página `/objetivos-equipa` (aba na sidebar) com vista consolidada dos ajustes de peso individuais: 6 cards de sumário (Prioritário/Em progresso/Quase lá/Atingido/Sem objetivo/Todos), **filtros multi-dimensão** (pesquisa por nome, posição, estado, direção do ajuste), **colunas ordenáveis** (nome, posição, estado, peso, %MG, alvo, Δ), tabela ordenada por prioridade com Δ peso + progresso, click numa linha vai ao perfil
 - [x] **Estados granulares de peso-alvo** (`lib/goalStatus.js`): Atingido (|Δ|≤0.5kg) / Quase lá (≤2kg) / Em progresso (≤5kg) / Prioritário (>5kg). Pill reutilizada no `GoalsPanel` individual + `TeamGoals`
-- [x] **Export PDF client-side** (`lib/pdf.js` com `jspdf` + `jspdf-autotable`) — botão "Descarregar PDF" no Dashboard (KPIs + plantel com badges coloridos por banda) e nos Objetivos de Equipa (sumário + tabela priorizada com colorização por estado). Suporte completo a caracteres PT-PT, cabeçalho com faixa verde do clube e rodapé com paginação
-- [x] Testes E2E: 100% pass em duas iterações (fotos + objetivos de equipa)
+- [x] **Export PDF client-side** (`lib/pdf.js` com `jspdf` + `jspdf-autotable`) — botão "Descarregar PDF" no Dashboard (KPIs + plantel com badges coloridos por banda) e nos Objetivos de Equipa (sumário + tabela priorizada com colorização por estado). Suporte completo a caracteres PT-PT, cabeçalho com faixa vermelha/amarela do clube, emblema oficial incorporado e rodapé com paginação + "Desde 1930 · história, paixão e glória"
+- [x] **Identidade visual do clube**: emblema oficial na sidebar (com marca d'água discreta), no login (marca d'água gigante + estrelas amarelas + "★ Clube Desportivo Trofense ★" + mote "Cada grama conta.") e nos cabeçalhos de PDF. Paleta trocada de verde para as **cores institucionais**: vermelho `354 82% 44%` como primário, azul-marinho `220 55% 12%` na sidebar, amarelo `48 100% 50%` como accent
+- [x] Testes E2E: 100% pass em duas iterações (fotos + objetivos de equipa) + smoke visual da identidade renovada
 
 ## Backlog priorizado (atualizado)
 - **P1** Export Excel nativo (com múltiplas folhas: resumo + histórico) usando `xlsx`
