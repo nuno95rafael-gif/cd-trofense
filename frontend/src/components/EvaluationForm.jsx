@@ -161,14 +161,14 @@ export function EvaluationForm({ athlete, onSaved }) {
             <div key={k} className="space-y-2">
               <div className="text-sm font-semibold">{l}</div>
               <div
-                className="relative bg-secondary rounded-md overflow-hidden border cursor-pointer hover:border-primary/60 transition"
-                style={{ aspectRatio: "3 / 4" }}
+                className="relative rounded-md overflow-hidden border cursor-pointer hover:border-primary/60 transition"
+                style={{ aspectRatio: "3 / 4", backgroundColor: "hsl(var(--background))" }}
                 onClick={() => !photoPreviews[k] && pickFile(k)}
                 data-testid={`eval-photo-slot-${k}`}
               >
                 {photoPreviews[k] ? (
                   <>
-                    <img src={photoPreviews[k]} alt={l} className="w-full h-full object-cover" />
+                    <img src={photoPreviews[k]} alt={l} className="w-full h-full object-contain" />
                     <div className="absolute top-2 right-2 flex gap-1">
                       <Button type="button" size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); pickFile(k); }} title="Substituir" data-testid={`eval-photo-replace-${k}`}>
                         <Crop className="w-4 h-4" />

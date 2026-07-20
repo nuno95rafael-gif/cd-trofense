@@ -199,11 +199,11 @@ export function PhotosPanel({ athleteId, evaluations, isEditor }) {
                     )}
                   </div>
                   <div
-                    className="relative bg-secondary rounded-md overflow-hidden border"
-                    style={{ aspectRatio: "3 / 4" }}
+                    className="relative rounded-md overflow-hidden border"
+                    style={{ aspectRatio: "3 / 4", backgroundColor: "hsl(var(--background))" }}
                   >
                     {photo && blobs[photo.id] ? (
-                      <img src={blobs[photo.id]} alt={label} className="w-full h-full object-cover" />
+                      <img src={blobs[photo.id]} alt={label} className="w-full h-full object-contain" />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-xs gap-2">
                         {isEditor ? (
