@@ -11,6 +11,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { AthleteForm } from "@/components/AthleteForm";
 import { EvaluationForm } from "@/components/EvaluationForm";
 import { EvaluationCharts } from "@/components/EvaluationCharts";
+import { EvaluationHistoryRow } from "@/components/EvaluationHistoryRow";
 import { WeighinsPanel } from "@/components/WeighinsPanel";
 import { PhotosPanel } from "@/components/PhotosPanel";
 import { GoalsPanel } from "@/components/GoalsPanel";
@@ -119,13 +120,15 @@ export default function AthleteProfile() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mt-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mt-6">
           <Kpi label="Peso" value={last?.peso_kg ?? athlete.peso_atual_kg} unit="kg" testid="kpi-peso" />
           <Kpi label="% MG (R&W)" value={metrics?.rw} unit="%" testid="kpi-mg" />
           <Kpi label="Massa Gorda" value={metrics?.fat_mass_kg} unit="kg" testid="kpi-mg-kg" />
           <Kpi label="Massa Magra" value={metrics?.lean_mass_kg} unit="kg" testid="kpi-lean" />
-          <Kpi label="Massa Muscular (Lee)" value={metrics?.muscle_mass_kg} unit="kg" testid="kpi-mm" />
-          <Kpi label="MM/MG · IMC · Σ8" value={metrics ? `${metrics.mm_mg_ratio ?? "—"} · ${metrics.imc ?? "—"} · ${metrics.soma8 != null ? Math.round(metrics.soma8) : "—"}` : "—"} testid="kpi-multi" />
+          <Kpi label="Massa Muscular" value={metrics?.muscle_mass_kg} unit="kg" testid="kpi-mm" />
+          <Kpi label="MM/MG" value={metrics?.mm_mg_ratio} testid="kpi-mmmg" />
+          <Kpi label="IMC" value={metrics?.imc} testid="kpi-imc" />
+          <Kpi label="Σ 8 pregas" value={metrics?.soma8 != null ? Math.round(metrics.soma8) : null} testid="kpi-soma8" />
         </div>
         {metrics && (
           <div className="mt-4 pt-4 border-t">
@@ -171,32 +174,15 @@ export default function AthleteProfile() {
             ) : (
               <div className="space-y-2">
                 {[...evals].reverse().map((e) => (
-                  <div key={e.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-md border">
-                    <div className="text-sm">
-                      <div className="font-medium">{new Date(e.date).toLocaleDateString("pt-PT")}</div>
-                      <div className="text-muted-foreground text-xs">{e.peso_kg ? `${e.peso_kg} kg` : ""}</div>
-                    </div>
-                    <div className="flex items-center gap-4 num text-sm">
-                      <span>MG(R&W) <b>{e.metrics?.rw ?? "—"}%</b></span>
-                      <span>MM <b>{e.metrics?.muscle_mass_kg ?? "—"} kg</b></span>
-                      <span>IMC <b>{e.metrics?.imc ?? "—"}</b></span>
-                      <span>Σ8 <b>{e.metrics?.soma8 != null ? Math.round(e.metrics.soma8) : "—"}</b></span>
-                      <StatusPill status={e.metrics?.status_rw ?? e.metrics?.status} />
-                      {isEditor && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          data-testid={`delete-eval-${e.id}`}
-                          onClick={async () => {
-                            await api.delete(`/evaluations/${e.id}`);
-                            reload();
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                  <EvaluationHistoryRow
+                    key={e.id}
+                    evaluation={e}
+                    isEditor={isEditor}
+                    onDelete={async (id) => {
+                      await api.delete(`/evaluations/${id}`);
+                      reload();
+                    }}
+                  />
                 ))}
               </div>
             )}
