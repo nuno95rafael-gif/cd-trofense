@@ -521,75 +521,179 @@ async def delete_weighin(wid: str, _: dict = Depends(require_editor)):
     return {"ok": True}
 
 
+@api.get("/weighins")
+async def list_all_weighins(days: int = 60, _: dict = Depends(get_current_user)):
+    """Devolve todas as pesagens recentes (últimos N dias) com nome do atleta."""
+    from datetime import datetime, timedelta, timezone as tz
+    cutoff = (datetime.now(tz.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    weighins = await db.weighins.find(
+        {"date": {"$gte": cutoff}}, {"_id": 0}
+    ).sort("date", -1).to_list(5000)
+    athletes = await db.athletes.find({}, {"_id": 0, "id": 1, "nome": 1, "posicao": 1}).to_list(500)
+    return {"athletes": athletes, "weighins": weighins}
+
+
 @api.post("/weighins/import")
 async def import_weighins(
     file: UploadFile = File(...),
     user: dict = Depends(require_editor),
 ):
-    """Import Excel/CSV com colunas: Nome, Data, Peso (opcional: Nota).
-    Cria pesagens automaticamente. Retorna resumo.
+    """Aceita 2 formatos:
+       (A) Long: colunas Nome/Data/Peso (uma linha por pesagem)
+       (B) Wide: primeira coluna 'Atleta'/'Nome', restantes colunas com datas como cabeçalho.
+    Tenta detetar automaticamente com base nos cabeçalhos das folhas.
     """
     import io
     import pandas as pd
+    from datetime import datetime as _dt
     content = await file.read()
     ext = (file.filename or "").lower().split(".")[-1]
-    try:
+
+    def _try_read(sheet=0):
         if ext in ("xlsx", "xls"):
-            df = pd.read_excel(io.BytesIO(content))
-        else:
-            df = pd.read_csv(io.BytesIO(content))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Não consegui ler o ficheiro: {e}")
+            return pd.read_excel(io.BytesIO(content), sheet_name=sheet)
+        return pd.read_csv(io.BytesIO(content))
 
-    # normalizar nomes de colunas
-    cols = {str(c).strip().lower(): c for c in df.columns}
-    def col(*aliases):
-        for a in aliases:
-            if a in cols:
-                return cols[a]
+    # Tenta várias folhas — cada uma pode ter o cabeçalho em linhas diferentes (linha 0, 1 ou 2)
+    raw_sheets = []
+    if ext in ("xlsx", "xls"):
+        try:
+            book = pd.read_excel(io.BytesIO(content), sheet_name=None, header=None)
+            raw_sheets = list(book.values())
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Não consegui ler o ficheiro: {e}")
+    else:
+        try:
+            raw_sheets = [pd.read_csv(io.BytesIO(content), header=None)]
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Não consegui ler o ficheiro: {e}")
+
+    def _find_header_row(raw_df):
+        """Devolve o índice da linha que contém 'Nome' ou 'Atleta' (case-insensitive)."""
+        for i in range(min(10, len(raw_df))):
+            row = raw_df.iloc[i].astype(str).str.strip().str.lower()
+            if row.isin(["nome", "atleta", "name"]).any():
+                return i
         return None
-    c_nome = col("nome", "atleta", "name")
-    c_data = col("data", "date")
-    c_peso = col("peso", "peso (kg)", "kg", "weight")
-    if not (c_nome and c_data and c_peso):
-        raise HTTPException(status_code=400, detail="O ficheiro precisa das colunas: Nome, Data, Peso")
 
-    # index de nome → id
+    dfs = []
+    for raw in raw_sheets:
+        h = _find_header_row(raw)
+        if h is None:
+            continue
+        headers = raw.iloc[h].tolist()
+        body = raw.iloc[h + 1:].copy()
+        body.columns = headers
+        dfs.append(body)
+
     athletes = await db.athletes.find({}, {"_id": 0, "id": 1, "nome": 1}).to_list(2000)
     name_to_id = {a["nome"].strip().lower(): a["id"] for a in athletes}
 
     created = 0
-    skipped = []
-    for _, row in df.iterrows():
+    skipped: list[str] = []
+
+    def _parse_date(v) -> str | None:
+        if v is None:
+            return None
+        if hasattr(v, "strftime"):
+            return v.strftime("%Y-%m-%d")
+        s = str(v).strip()
+        if not s or s.lower() == "nan":
+            return None
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d"):
+            try:
+                return _dt.strptime(s[:10], fmt).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+        return None
+
+    async def _add(nome: str, date_str: str, peso: float):
+        nonlocal created
+        import math
+        aid = name_to_id.get(nome.strip().lower())
+        if not aid:
+            skipped.append(f"{nome}: atleta não existe")
+            return
         try:
-            nome = str(row[c_nome]).strip()
-            if not nome or nome.lower() == "nan":
-                continue
-            aid = name_to_id.get(nome.lower())
-            if not aid:
-                skipped.append(f"{nome}: atleta não existe")
-                continue
-            raw_date = row[c_data]
-            if hasattr(raw_date, "strftime"):
-                date_str = raw_date.strftime("%Y-%m-%d")
-            else:
-                date_str = str(raw_date).strip()[:10]
-            peso = float(row[c_peso])
-            if peso <= 0 or peso > 300:
-                skipped.append(f"{nome} {date_str}: peso inválido ({peso})")
-                continue
-            await db.weighins.insert_one({
-                "id": new_id(),
-                "athlete_id": aid,
-                "date": date_str,
-                "peso_kg": round(peso, 2),
-                "created_at": now_iso(),
-                "created_by": user["id"],
-                "imported": True,
-            })
-            created += 1
-        except Exception as e:
-            skipped.append(f"linha inválida: {e}")
+            peso_f = float(peso)
+        except Exception:
+            skipped.append(f"{nome} {date_str}: peso inválido ({peso})")
+            return
+        if peso_f is None or math.isnan(peso_f) or math.isinf(peso_f) or peso_f <= 0 or peso_f > 300:
+            skipped.append(f"{nome} {date_str}: peso inválido ({peso})")
+            return
+        # remove pesagem no mesmo dia (evita duplicados no re-import)
+        await db.weighins.delete_many({"athlete_id": aid, "date": date_str})
+        await db.weighins.insert_one({
+            "id": new_id(),
+            "athlete_id": aid,
+            "date": date_str,
+            "peso_kg": round(peso_f, 2),
+            "created_at": now_iso(),
+            "created_by": user["id"],
+            "imported": True,
+        })
+        created += 1
+
+    processed_any = False
+    for df in dfs:
+        if df is None or df.empty:
+            continue
+        cols = {str(c).strip().lower(): c for c in df.columns}
+        c_nome = next((cols[k] for k in ("nome", "atleta", "name") if k in cols), None)
+        c_data = next((cols[k] for k in ("data", "date") if k in cols), None)
+        c_peso = next((cols[k] for k in ("peso", "peso (kg)", "kg", "weight") if k in cols), None)
+
+        # Formato LONG (Nome / Data / Peso)
+        if c_nome and c_data and c_peso:
+            processed_any = True
+            for _, row in df.iterrows():
+                try:
+                    nome = str(row[c_nome]).strip()
+                    if not nome or nome.lower() == "nan":
+                        continue
+                    date_str = _parse_date(row[c_data])
+                    if not date_str:
+                        continue
+                    peso = float(row[c_peso])
+                    await _add(nome, date_str, peso)
+                except Exception as e:
+                    skipped.append(f"linha inválida: {e}")
+            continue
+
+        # Formato WIDE (Atleta | 10/07/2026 | 11/07/2026 | ...)
+        if c_nome:
+            date_cols = []
+            for orig in df.columns:
+                if orig == c_nome:
+                    continue
+                d = _parse_date(orig)
+                if d:
+                    date_cols.append((orig, d))
+            if date_cols:
+                processed_any = True
+                for _, row in df.iterrows():
+                    try:
+                        nome = str(row[c_nome]).strip().lstrip("—- ").strip()
+                        if not nome or nome.lower() == "nan":
+                            continue
+                        for orig, date_str in date_cols:
+                            v = row[orig]
+                            if v is None or (isinstance(v, float) and pd.isna(v)):
+                                continue
+                            try:
+                                peso = float(str(v).replace(",", "."))
+                            except Exception:
+                                continue
+                            await _add(nome, date_str, peso)
+                    except Exception as e:
+                        skipped.append(f"linha inválida: {e}")
+
+    if not processed_any:
+        raise HTTPException(
+            status_code=400,
+            detail="Não encontrei um formato válido. Precisa de Nome/Data/Peso ou Atleta + colunas com datas.",
+        )
 
     return {"created": created, "skipped": skipped}
 

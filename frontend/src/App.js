@@ -11,6 +11,7 @@ import Users from "@/pages/Users";
 import MonthlyReport from "@/pages/MonthlyReport";
 import Backup from "@/pages/Backup";
 import TeamGoals from "@/pages/TeamGoals";
+import WeighinsHistory from "@/pages/WeighinsHistory";
 import "@/App.css";
 
 function Protected({ children, editorOnly }) {
@@ -33,6 +34,7 @@ function App() {
               <Route path="/atletas/novo" element={<Protected editorOnly><AthleteNew /></Protected>} />
               <Route path="/atletas/:id" element={<AthleteProfile />} />
               <Route path="/objetivos-equipa" element={<TeamGoals />} />
+              <Route path="/pesagens" element={<WeighinsHistory />} />
               <Route path="/relatorio" element={<MonthlyReport />} />
               <Route path="/utilizadores" element={<Protected editorOnly><Users /></Protected>} />
               <Route path="/backup" element={<Protected editorOnly><Backup /></Protected>} />
