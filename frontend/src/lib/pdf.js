@@ -255,7 +255,10 @@ export async function exportTeamGoalsPdf(rows, counts) {
 // PDF INDIVIDUAL POR ATLETA
 // -------------------------------------------------------------------
 
-/** Descarrega uma foto autenticada e devolve como data URL + dimensões naturais. */
+/** Descarrega uma foto autenticada e devolve como data URL (para embed em PDF).
+ *  Aplica automaticamente a rotação EXIF ('from-image') via createImageBitmap para que
+ *  as fotos apareçam com a orientação correta (o jsPDF não respeita o flag EXIF).
+ */
 async function fetchPhotoAsDataUrl(photoId) {
   try {
     const token = localStorage.getItem("trofense_token");
@@ -265,13 +268,31 @@ async function fetchPhotoAsDataUrl(photoId) {
     });
     if (!res.ok) return null;
     const blob = await res.blob();
+    return await normalizeToDataUrl(blob);
+  } catch { return null; }
+}
+
+/** Descodifica o blob respeitando a orientação EXIF e devolve um dataURL JPEG normalizado. */
+async function normalizeToDataUrl(blob) {
+  // Tenta primeiro com createImageBitmap (respeita EXIF nativamente em navegadores modernos).
+  try {
+    const bmp = await createImageBitmap(blob, { imageOrientation: "from-image" });
+    const canvas = document.createElement("canvas");
+    canvas.width = bmp.width;
+    canvas.height = bmp.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bmp, 0, 0);
+    bmp.close?.();
+    return canvas.toDataURL("image/jpeg", 0.9);
+  } catch {
+    // Fallback: devolve o data URL raw (sem correção EXIF)
     return await new Promise((resolve, reject) => {
       const r = new FileReader();
       r.onload = () => resolve(r.result);
       r.onerror = reject;
       r.readAsDataURL(blob);
     });
-  } catch { return null; }
+  }
 }
 
 /** Devolve {w, h} naturais de uma imagem a partir de um data URL. */
