@@ -1,17 +1,19 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
-import { Trash2 } from "lucide-react";
+import { Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 export function WeighinsPanel({ athleteId, weighins, onChange, isEditor }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [peso, setPeso] = useState("");
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef(null);
 
   const chartData = useMemo(() => {
     const arr = weighins.map((w) => ({ date: w.date, peso: w.peso_kg }));
@@ -42,6 +44,27 @@ export function WeighinsPanel({ athleteId, weighins, onChange, isEditor }) {
   const del = async (id) => {
     await api.delete(`/weighins/${id}`);
     onChange();
+  };
+
+  const importXlsx = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const { data } = await api.post("/weighins/import", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success(`Importadas ${data.created} pesagens${data.skipped?.length ? ` · ${data.skipped.length} ignoradas` : ""}`);
+      if (data.skipped?.length) console.warn("Pesagens ignoradas:", data.skipped);
+      onChange();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   };
 
   return (

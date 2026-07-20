@@ -396,6 +396,79 @@ async def delete_weighin(wid: str, _: dict = Depends(require_editor)):
     return {"ok": True}
 
 
+@api.post("/weighins/import")
+async def import_weighins(
+    file: UploadFile = File(...),
+    user: dict = Depends(require_editor),
+):
+    """Import Excel/CSV com colunas: Nome, Data, Peso (opcional: Nota).
+    Cria pesagens automaticamente. Retorna resumo.
+    """
+    import io
+    import pandas as pd
+    content = await file.read()
+    ext = (file.filename or "").lower().split(".")[-1]
+    try:
+        if ext in ("xlsx", "xls"):
+            df = pd.read_excel(io.BytesIO(content))
+        else:
+            df = pd.read_csv(io.BytesIO(content))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Não consegui ler o ficheiro: {e}")
+
+    # normalizar nomes de colunas
+    cols = {str(c).strip().lower(): c for c in df.columns}
+    def col(*aliases):
+        for a in aliases:
+            if a in cols:
+                return cols[a]
+        return None
+    c_nome = col("nome", "atleta", "name")
+    c_data = col("data", "date")
+    c_peso = col("peso", "peso (kg)", "kg", "weight")
+    if not (c_nome and c_data and c_peso):
+        raise HTTPException(status_code=400, detail="O ficheiro precisa das colunas: Nome, Data, Peso")
+
+    # index de nome → id
+    athletes = await db.athletes.find({}, {"_id": 0, "id": 1, "nome": 1}).to_list(2000)
+    name_to_id = {a["nome"].strip().lower(): a["id"] for a in athletes}
+
+    created = 0
+    skipped = []
+    for _, row in df.iterrows():
+        try:
+            nome = str(row[c_nome]).strip()
+            if not nome or nome.lower() == "nan":
+                continue
+            aid = name_to_id.get(nome.lower())
+            if not aid:
+                skipped.append(f"{nome}: atleta não existe")
+                continue
+            raw_date = row[c_data]
+            if hasattr(raw_date, "strftime"):
+                date_str = raw_date.strftime("%Y-%m-%d")
+            else:
+                date_str = str(raw_date).strip()[:10]
+            peso = float(row[c_peso])
+            if peso <= 0 or peso > 300:
+                skipped.append(f"{nome} {date_str}: peso inválido ({peso})")
+                continue
+            await db.weighins.insert_one({
+                "id": new_id(),
+                "athlete_id": aid,
+                "date": date_str,
+                "peso_kg": round(peso, 2),
+                "created_at": now_iso(),
+                "created_by": user["id"],
+                "imported": True,
+            })
+            created += 1
+        except Exception as e:
+            skipped.append(f"linha inválida: {e}")
+
+    return {"created": created, "skipped": skipped}
+
+
 # ---------- Photos ----------
 @api.get("/athletes/{aid}/photos")
 async def list_photos(aid: str, _: dict = Depends(get_current_user)):

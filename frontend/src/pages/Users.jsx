@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
 
 export default function Users() {
   const { user } = useAuth();
@@ -42,6 +44,16 @@ export default function Users() {
   const toggle = async (u, active) => {
     try {
       await api.patch(`/users/${u.id}?active=${active}`);
+      load();
+    } catch (e) {
+      toast.error(formatApiError(e.response?.data?.detail));
+    }
+  };
+
+  const del = async (u) => {
+    try {
+      await api.delete(`/users/${u.id}`);
+      toast.success("Utilizador apagado");
       load();
     } catch (e) {
       toast.error(formatApiError(e.response?.data?.detail));
@@ -85,6 +97,7 @@ export default function Users() {
               <TableHead>Email</TableHead>
               <TableHead>Papel</TableHead>
               <TableHead>Ativo</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -104,6 +117,27 @@ export default function Users() {
                     onCheckedChange={(v) => toggle(u, v)}
                     data-testid={`toggle-user-${u.id}`}
                   />
+                </TableCell>
+                <TableCell className="text-right">
+                  {u.id !== user?.id && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" data-testid={`delete-user-${u.id}`}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Apagar {u.name}?</AlertDialogTitle>
+                          <AlertDialogDescription>Esta ação remove permanentemente o utilizador. Não é reversível.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => del(u)} data-testid={`confirm-delete-user-${u.id}`}>Apagar</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

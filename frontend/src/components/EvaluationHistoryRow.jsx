@@ -70,12 +70,12 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div>
               <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">Pregas cutâneas (mm)</div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              <div className="grid grid-cols-1 gap-y-1 text-sm max-w-md">
                 {PREGAS.map(([k, l]) => (
-                  <div key={k} className="flex justify-between border-b border-dashed border-border/50 py-0.5">
+                  <div key={k} className="flex justify-between border-b border-dashed border-border/50 py-1">
                     <span className="text-muted-foreground">{l}</span>
                     <span className="num font-medium">{e.pregas?.[k] ?? "—"}</span>
                   </div>
@@ -84,16 +84,18 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
             </div>
             <div>
               <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">Perímetros (cm)</div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              <div className="grid grid-cols-1 gap-y-1 text-sm max-w-md">
                 {PER.map(([k, l]) => (
-                  <div key={k} className="flex justify-between border-b border-dashed border-border/50 py-0.5">
+                  <div key={k} className="flex justify-between border-b border-dashed border-border/50 py-1">
                     <span className="text-muted-foreground">{l}</span>
                     <span className="num font-medium">{e.perimetros?.[k] ?? "—"}</span>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">Indicadores</div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">Indicadores</div>
+              <div className="grid grid-cols-1 gap-y-1 text-sm max-w-md">
                 <Row label="Massa Gorda (kg)" v={m.fat_mass_kg} />
                 <Row label="Massa Magra (kg)" v={m.lean_mass_kg} />
                 <Row label="Massa Muscular (Lee)" v={m.muscle_mass_kg} unit="kg" />
@@ -102,6 +104,7 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
                 <Row label="IMC" v={m.imc} />
                 <Row label="Σ 7 pregas" v={m.soma7 != null ? Math.round(m.soma7) : null} />
                 <Row label="Σ 8 pregas" v={m.soma8 != null ? Math.round(m.soma8) : null} />
+                {m.ratio_ca != null && <Row label="Rácio cintura/anca" v={m.ratio_ca} />}
               </div>
             </div>
           </div>
