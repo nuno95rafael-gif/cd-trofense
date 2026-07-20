@@ -102,15 +102,19 @@ export function EvaluationForm({ athlete, onSaved }) {
         <div className="flex flex-wrap justify-between items-start gap-4">
           <div>
             <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Resultados (em tempo real)</div>
-            <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Metric label="Reilly & Wallace" value={metrics.bf_reilly_wallace} unit="%" />
-              <Metric label="Evans 2005" value={metrics.bf_evans} unit="%" />
-              <Metric label="Jackson-Pollock" value={metrics.bf_jackson_pollock} unit="%" />
-              <Metric label="Withers" value={metrics.bf_withers} unit="%" />
-              <Metric label="Média % MG" value={metrics.bf_average} unit="%" strong />
-              <Metric label="MM (Lee)" value={metrics.muscle_mass_kg} unit="kg" strong />
+            <div className="mt-2 grid grid-cols-2 md:grid-cols-5 gap-4">
+              <Metric label="R & W" value={metrics.rw} unit="%" strong />
+              <Metric label="Jackson-Pollock 7" value={metrics.jp7} unit="%" />
+              <Metric label="Evans 7" value={metrics.evans7} unit="%" />
+              <Metric label="Evans 3" value={metrics.evans3} unit="%" />
+              <Metric label="Withers" value={metrics.withers} unit="%" />
+              <Metric label="Massa Muscular (Lee)" value={metrics.muscle_mass_kg} unit="kg" strong />
+              <Metric label="Massa Gorda" value={metrics.fat_mass_kg} unit="kg" />
+              <Metric label="Massa Magra" value={metrics.lean_mass_kg} unit="kg" />
+              <Metric label="MM/MG" value={metrics.mm_mg_ratio} strong />
               <Metric label="IMC" value={metrics.imc} strong />
-              <Metric label="Rácio MM/MG" value={metrics.mm_mg_ratio} strong />
+              <Metric label="Σ 8 pregas" value={metrics.soma8 != null ? Math.round(metrics.soma8) : null} />
+              <Metric label="% MM" value={metrics.perc_mm} unit="%" />
             </div>
           </div>
           <StatusPill status={metrics.status} testid="preview-status" />

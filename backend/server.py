@@ -18,7 +18,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
 
-from formulas import compute_all, status_from_bf
+from formulas import compute_all
 from storage import put_object, get_object, init_storage, APP_NAME
 
 # ---------- Setup ----------
@@ -132,11 +132,15 @@ class AthleteIn(BaseModel):
     altura_cm: Optional[float] = None
     idade: Optional[float] = None
     peso_normal_kg: Optional[float] = None
+    peso_atual_kg: Optional[float] = None
     dieta: Optional[str] = None
     agua_l: Optional[float] = None
     suplementacao: Optional[str] = None
     cafeina: Optional[str] = None
     preferencia_jogo: Optional[str] = None
+    sabor_batido: Optional[str] = None
+    intervalo: Optional[str] = None
+    nao_gosta: Optional[str] = None
     sono_h: Optional[float] = None
     notas: Optional[str] = None
 
@@ -245,11 +249,18 @@ async def list_athletes(_: dict = Depends(get_current_user)):
         if last:
             a["last_metrics"] = last.get("metrics")
             a["last_evaluation_date"] = last.get("date")
+            a["last_eval_weight"] = last.get("peso_kg")
         # última pesagem
         lw = await db.weighins.find_one({"athlete_id": a["id"]}, {"_id": 0}, sort=[("date", -1)])
         if lw:
             a["last_weight"] = lw.get("peso_kg")
             a["last_weight_date"] = lw.get("date")
+        # peso a mostrar: pesagem > avaliação > peso_atual_kg
+        a["display_weight"] = (
+            a.get("last_weight")
+            or a.get("last_eval_weight")
+            or a.get("peso_atual_kg")
+        )
     return docs
 
 
@@ -297,6 +308,30 @@ async def set_goal(aid: str, body: GoalIn, _: dict = Depends(require_editor)):
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Atleta não encontrado")
     return {"ok": True}
+
+
+@api.post("/athletes/{aid}/recompute")
+async def recompute_metrics(aid: str, _: dict = Depends(require_editor)):
+    a = await db.athletes.find_one({"id": aid}, {"_id": 0})
+    if not a:
+        raise HTTPException(status_code=404, detail="Atleta não encontrado")
+    evs = await db.evaluations.find({"athlete_id": aid}, {"_id": 0}).to_list(500)
+    for e in evs:
+        m = compute_all(e, a)
+        await db.evaluations.update_one({"id": e["id"]}, {"$set": {"metrics": m}})
+    return {"ok": True, "updated": len(evs)}
+
+
+@api.post("/admin/recompute-all")
+async def recompute_all(_: dict = Depends(require_editor)):
+    total = 0
+    async for a in db.athletes.find({}, {"_id": 0}):
+        evs = await db.evaluations.find({"athlete_id": a["id"]}, {"_id": 0}).to_list(500)
+        for e in evs:
+            m = compute_all(e, a)
+            await db.evaluations.update_one({"id": e["id"]}, {"$set": {"metrics": m}})
+            total += 1
+    return {"ok": True, "updated": total}
 
 
 # ---------- Evaluations ----------
@@ -479,7 +514,7 @@ async def _month_avg(aid: str, month: str) -> dict:
         vals = [v for v in vals if v is not None]
         return round(sum(vals) / len(vals), 2) if vals else None
 
-    bf = avg([e.get("metrics", {}).get("bf_average") for e in evs])
+    bf = avg([e.get("metrics", {}).get("rw") for e in evs])
     imc = avg([e.get("metrics", {}).get("imc") for e in evs])
     peso_ev = [e.get("peso_kg") for e in evs]
     peso_w = [w.get("peso_kg") for w in weighins]

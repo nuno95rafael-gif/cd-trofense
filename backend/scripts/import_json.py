@@ -87,6 +87,10 @@ async def run(path: str, wipe: bool, admin_email: str):
             continue
 
         obs = a.get("observacoes", {}) or {}
+        # peso atual = peso da última avaliação
+        evs = a.get("evaluations", []) or []
+        last_ev = sorted(evs, key=lambda x: x.get("date", ""))[-1] if evs else None
+        peso_atual = last_ev.get("peso") if last_ev else None
         athlete_doc = {
             "id": new_id(),
             "nome": a["nome"],
@@ -95,14 +99,18 @@ async def run(path: str, wipe: bool, admin_email: str):
             "etnia": ETH_MAP.get(a.get("etnia", 0), "caucasiano"),
             "altura_cm": round(float(a["altura"]) * 100, 1) if a.get("altura") else None,
             "idade": a.get("idade"),
+            "peso_atual_kg": peso_atual,
             "peso_normal_kg": _parse_first_num(obs.get("peso_normal")),
             "dieta": obs.get("dieta") or None,
             "agua_l": _parse_first_num(obs.get("agua")),
             "suplementacao": obs.get("suplementacao") or None,
             "cafeina": obs.get("cafeina") or None,
             "preferencia_jogo": obs.get("pref_dia_jogo") or None,
+            "sabor_batido": obs.get("sabor_batido") or None,
+            "intervalo": obs.get("intervalo") or None,
+            "nao_gosta": obs.get("nao_gosta") or None,
             "sono_h": _parse_first_num(obs.get("sono")),
-            "notas": _build_notes(obs),
+            "notas": obs.get("sono") if obs.get("sono") and not _parse_first_num(obs.get("sono")) else None,
             "goal": {"bf_target_pct": target_pct, "updated_at": now_iso()} if target_pct else None,
             "created_at": now_iso(),
             "created_by": admin_id,

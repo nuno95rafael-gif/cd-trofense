@@ -1,215 +1,261 @@
-"""Body composition formulas — fiéis às referências originais.
+"""Body composition formulas — FIÉIS ao Trofense_APP.jsx original.
 
-Todas as fórmulas recebem dicionário `p` com pregas (mm) e outros dados.
-Devolvem valores em % ou kg. Se dados insuficientes -> None.
+Todas as fórmulas devolvem % MG diretamente em % (0-100) — não em fração.
 """
-from math import log10
+from math import pow
+
+PI_EXCEL = 3.1415  # constante literal usada no ficheiro original (não Math.PI)
 
 
-def sum_pregas_7(p: dict) -> float | None:
-    """Somatório 7 pregas: peito, tricipital, subescapular, axilar,
-    suprailiaca, abdominal, coxa."""
-    keys = ["peito", "tricipital", "subescapular", "axilar",
-            "suprailiaca", "abdominal", "coxa"]
-    vals = [p.get(k) for k in keys]
-    if any(v is None for v in vals):
-        return None
-    return float(sum(vals))
+def _get(p, *keys):
+    """Devolve lista de valores; None se algum faltar."""
+    out = []
+    for k in keys:
+        v = p.get(k)
+        if v is None or v == "":
+            return None
+        out.append(float(v))
+    return out
 
 
-def sum_pregas_8(p: dict) -> float | None:
-    """Somatório 8 pregas: adiciona 'supraespinhal' ao 7-pregas."""
-    keys = ["peito", "tricipital", "subescapular", "axilar",
-            "suprailiaca", "abdominal", "coxa", "supraespinhal"]
-    vals = [p.get(k) for k in keys]
-    if any(v is None for v in vals):
-        return None
-    return float(sum(vals))
+def sum_pregas_8(p):
+    """Σ 8 pregas: peito, tricipital, subescapular, axilar, suprailiaca,
+    abdominal, coxa, gemeo (matches soma8 do original)."""
+    v = _get(p, "peito", "tricipital", "subescapular", "axilar",
+             "suprailiaca", "abdominal", "coxa", "gemeo")
+    return round(sum(v), 2) if v else None
 
 
-def bmi(weight_kg: float | None, height_cm: float | None) -> float | None:
+def sum_pregas_7(p):
+    """Σ 7 pregas standard (peito, tricipital, subescapular, axilar,
+    suprailiaca, abdominal, coxa)."""
+    v = _get(p, "peito", "tricipital", "subescapular", "axilar",
+             "suprailiaca", "abdominal", "coxa")
+    return round(sum(v), 2) if v else None
+
+
+def bmi(weight_kg, height_cm):
     if not weight_kg or not height_cm:
         return None
     h = height_cm / 100.0
-    if h <= 0:
-        return None
     return round(weight_kg / (h * h), 2)
 
 
-# ---------- Jackson-Pollock (7 skinfolds) ----------
-def bf_jackson_pollock(p: dict, sex: str, age: float) -> float | None:
-    """Jackson & Pollock 7 pregas — % MG.
-    Densidade -> Siri para % MG.
+# --------- Reilly & Wallace (3 dobras, para futebolistas) ---------
+def bf_reilly_wallace(p):
+    """rw = 5.174 + 0.124*coxa + 0.147*abdominal + 0.13*gemeo   (%)"""
+    v = _get(p, "coxa", "abdominal", "gemeo")
+    if not v:
+        return None
+    coxa, abdom, gemeo = v
+    return round(5.174 + 0.124 * coxa + 0.147 * abdom + 0.13 * gemeo, 2)
+
+
+# --------- Evans 7 dobras ---------
+def bf_evans7(p, sex_num, ethnicity_num):
+    """evans7 = 10.566 + 0.12077*Σ7 - 8.057*sexo - 2.545*etnia
+    sexo=1 se M, 0 se F; etnia=0 ou 1.
+    Pregas: peito+tricipital+bicipital+axilar+suprailiaca+abdominal+coxa
     """
-    s = sum_pregas_7(p)
-    if s is None or age is None:
+    v = _get(p, "peito", "tricipital", "bicipital", "axilar",
+             "suprailiaca", "abdominal", "coxa")
+    if not v:
         return None
-    if sex == "M":
-        density = 1.112 - 0.00043499 * s + 0.00000055 * (s * s) - 0.00028826 * age
-    else:
-        density = 1.097 - 0.00046971 * s + 0.00000056 * (s * s) - 0.00012828 * age
-    if density <= 0:
-        return None
-    bf = (495.0 / density) - 450.0
-    return round(bf, 2)
+    s = sum(v)
+    return round(10.566 + 0.12077 * s - 8.057 * sex_num - 2.545 * ethnicity_num, 2)
 
 
-# ---------- Withers (males 7 pregas) ----------
-def bf_withers(p: dict, sex: str) -> float | None:
-    """Withers et al. 1987 — 7 pregas (atletas).
-    Homens: D = 1.0988 - 0.0004 * S7
-    Mulheres: D = 1.17484 - 0.07229 * log10(S7)
+# --------- Evans 3 dobras ---------
+def bf_evans3(p, sex_num, ethnicity_num):
+    """evans3 = 8.997 + 0.24658*(abdominal+coxa+tricipital) - 6.343*sexo - 1.998*etnia"""
+    v = _get(p, "abdominal", "coxa", "tricipital")
+    if not v:
+        return None
+    s = sum(v)
+    return round(8.997 + 0.24658 * s - 6.343 * sex_num - 1.998 * ethnicity_num, 2)
+
+
+# --------- Jackson-Pollock 7 dobras ---------
+def bf_jackson_pollock(p, age):
+    """jp7 = 4.95/(1.112 - 0.00043499*Σ + 0.00000055*Σ² - 0.00028826*idade) - 4.5
+    Retorna em fração; multiplica-se por 100 para %.
+    Pregas: peito+tricipital+bicipital+subescapular+abdominal+coxa+suprailiaca"""
+    v = _get(p, "peito", "tricipital", "bicipital", "subescapular",
+             "abdominal", "coxa", "suprailiaca")
+    if not v or not age:
+        return None
+    s = sum(v)
+    d = 1.112 - 0.00043499 * s + 0.00000055 * s * s - 0.00028826 * age
+    if d <= 0:
+        return None
+    frac = 4.95 / d - 4.5
+    return round(frac * 100, 2)
+
+
+# --------- Withers ---------
+def bf_withers(p):
+    """withers = (495/(1.0988 - 0.0004*Σ7w) - 450)/100 * 100  = 495/D - 450
+    Pregas: tricipital+bicipital+subescapular+abdominal+supraespinhal+coxa+gemeo"""
+    v = _get(p, "tricipital", "bicipital", "subescapular", "abdominal",
+             "supraespinhal", "coxa", "gemeo")
+    if not v:
+        return None
+    s = sum(v)
+    d = 1.0988 - 0.0004 * s
+    if d <= 0:
+        return None
+    return round(495 / d - 450, 2)
+
+
+# --------- Massa Muscular Lee 2000 (corrigido: perímetros - PI*preg/10) ---------
+def muscle_mass_lee(altura_cm, p, per, sex_num, ethnicity_num, age):
+    """MM (kg) = altura_m * (0.00744*(braco - PI*tri/10)² +
+                             0.00088*(coxaD - PI*supraespinhal/10)² +
+                             0.00441*(gemeo_per - PI*gemeo_preg/10)²)
+                + 2.4*sexo - 0.048*idade + etnia + 7.8
     """
-    s = sum_pregas_7(p)
-    if s is None or s <= 0:
+    if not altura_cm or age is None:
         return None
-    if sex == "M":
-        density = 1.0988 - 0.0004 * s
-    else:
-        density = 1.17484 - 0.07229 * log10(s)
-    if density <= 0:
-        return None
-    bf = (495.0 / density) - 450.0
-    return round(bf, 2)
-
-
-# ---------- Reilly & Wallace (soccer players) ----------
-def bf_reilly_wallace(p: dict) -> float | None:
-    """Reilly et al. 2009 — jogadores de futebol.
-    %MG = 5.174 + 0.124*(abdominal) + 0.147*(coxa) + 0.196*(tricipital)
-          + 0.130*(gemeo)
-    (mm de pregas)
-    """
-    keys = ["abdominal", "coxa", "tricipital", "gemeo"]
-    vals = {k: p.get(k) for k in keys}
-    if any(v is None for v in vals.values()):
-        return None
-    bf = (5.174
-          + 0.124 * vals["abdominal"]
-          + 0.147 * vals["coxa"]
-          + 0.196 * vals["tricipital"]
-          + 0.130 * vals["gemeo"])
-    return round(bf, 2)
-
-
-# ---------- Evans 2005 (athletes 3-site) ----------
-def bf_evans(p: dict, sex: str, ethnicity: str = "caucasiano") -> float | None:
-    """Evans et al. 2005 — atletas.
-    Homens: %MG = 8.997 + 0.24658*(S3) - 6.343*(1 se afro) - 1.998*(1 se branco)
-    Onde S3 = abdominal + coxa + tricipital
-    Simplificação usada no JSX: coefs por etnia.
-    """
-    s = 0.0
-    for k in ("abdominal", "coxa", "tricipital"):
-        v = p.get(k)
-        if v is None:
+    braco = per.get("braco")
+    coxaD = per.get("coxaD") or per.get("coxaE")
+    gemeo_per = per.get("gemeo")
+    tri = p.get("tricipital")
+    sup = p.get("supraespinhal")
+    gem_preg = p.get("gemeo")
+    for v in (braco, coxaD, gemeo_per, tri, sup, gem_preg):
+        if v is None or v == "":
             return None
-        s += v
-    is_afro = (ethnicity or "").lower().startswith("afr")
-    if sex == "M":
-        bf = 8.997 + 0.24658 * s - (6.343 if is_afro else 0.0) - (1.998 if not is_afro else 0.0)
-    else:
-        # Fórmula geral para mulheres (Evans 2005)
-        bf = 10.566 + 0.20345 * s - (6.343 if is_afro else 0.0) - (1.998 if not is_afro else 0.0)
-    return round(bf, 2)
+    altura_m = altura_cm / 100.0
+    mm = (
+        altura_m * (
+            0.00744 * pow(float(braco) - PI_EXCEL * float(tri) / 10.0, 2) +
+            0.00088 * pow(float(coxaD) - PI_EXCEL * float(sup) / 10.0, 2) +
+            0.00441 * pow(float(gemeo_per) - PI_EXCEL * float(gem_preg) / 10.0, 2)
+        )
+        + 2.4 * sex_num
+        - 0.048 * age
+        + ethnicity_num
+        + 7.8
+    )
+    return round(mm, 2)
 
 
-# ---------- Lee et al. 2000 — Massa Muscular (SMM em kg) ----------
-def muscle_mass_lee(height_cm: float | None,
-                    perimeters: dict,
-                    sex: str,
-                    age: float | None,
-                    ethnicity: str = "caucasiano") -> float | None:
-    """Lee et al. 2000 — Skeletal Muscle Mass (kg).
-    SMM = Ht * (0.00744*CAG^2 + 0.00088*CTG^2 + 0.00441*CCG^2)
-          + 2.4*sex - 0.048*age + race + 7.8
-    onde:
-        CAG = perimetro braço corrigido (cm - preg triciptal em cm)
-        CTG = perimetro coxa corrigido (cm - preg coxa em cm)
-        CCG = perimetro gémeo corrigido (cm - preg gémeo em cm)
-    sex = 1 se M, 0 se F. race = 1.1 (asiático), 1.4 (afro), 0 (caucas.)
-    Neste app usamos perímetros medidos (não corrigidos) por simplicidade
-    porque não pedimos pregas nos mesmos sítios em cm.
-    """
-    if not height_cm or age is None:
-        return None
-    ht = height_cm / 100.0
-    cag = perimeters.get("braco")
-    coxa_perim = perimeters.get("coxaD") or perimeters.get("coxaE")
-    ccg = perimeters.get("gemeo")
-    if cag is None or coxa_perim is None or ccg is None:
-        return None
-    sex_v = 1.0 if sex == "M" else 0.0
-    eth = (ethnicity or "").lower()
-    if eth.startswith("asi"):
-        race = 1.1
-    elif eth.startswith("afr"):
-        race = 1.4
-    else:
-        race = 0.0
-    smm = (ht * (0.00744 * cag * cag
-                 + 0.00088 * coxa_perim * coxa_perim
-                 + 0.00441 * ccg * ccg)
-           + 2.4 * sex_v - 0.048 * age + race + 7.8)
-    return round(smm, 2)
-
-
-def status_from_bf(bf: float | None, sex: str) -> str:
-    """Retorna faixa: Ótimo / Atenção / Alto conforme sexo."""
-    if bf is None:
+# --------- Bandas de estado (pontos de corte do ficheiro original) ---------
+def rw_band(rw_pct):
+    """% MG Reilly&Wallace — futebolistas de elite (não clínicas)."""
+    if rw_pct is None:
         return "—"
-    if sex == "M":
-        if bf < 12:
-            return "Ótimo"
-        if bf < 18:
-            return "Atenção"
-        return "Alto"
-    # F
-    if bf < 20:
+    if rw_pct < 9:
         return "Ótimo"
-    if bf < 26:
+    if rw_pct <= 10:
         return "Atenção"
     return "Alto"
 
 
-def compute_all(evaluation: dict, athlete: dict) -> dict:
-    """Recebe evaluation (pregas+perimetros+peso+age_at_eval) e athlete
-    (sexo, etnia, altura_cm). Devolve dicionário com todos os cálculos."""
+def soma8_band(s8):
+    if s8 is None:
+        return "—"
+    if s8 < 65:
+        return "Baixo"
+    if s8 <= 75:
+        return "Médio"
+    return "Alto"
+
+
+def perc_mm_band(perc_mm):
+    """% Massa Muscular sobre peso."""
+    if perc_mm is None:
+        return "—"
+    if perc_mm >= 45:
+        return "Ótimo"
+    if perc_mm >= 40:
+        return "Atenção"
+    return "Baixo"
+
+
+def mm_mg_band(ratio, sex_num):
+    """M≥4 normal, F≥2 normal (senão baixo)."""
+    if ratio is None:
+        return "—"
+    threshold = 4 if sex_num == 1 else 2
+    return "Normal" if ratio >= threshold else "Baixo"
+
+
+def imc_band(imc):
+    if imc is None:
+        return "—"
+    if imc < 18.5:
+        return "Baixo peso"
+    if imc < 25:
+        return "Peso normal"
+    if imc < 30:
+        return "Sobrepeso"
+    if imc < 35:
+        return "Obesidade I"
+    if imc < 40:
+        return "Obesidade II"
+    return "Obesidade III"
+
+
+def compute_all(evaluation, athlete):
+    """Calcula todos os indicadores da avaliação.
+
+    athlete.sexo: string "M"/"F" (é convertida para 1/0)
+    athlete.etnia: string ("caucasiano" → 0, "africano" → 1, outros→0)
+    """
     p = evaluation.get("pregas", {}) or {}
     per = evaluation.get("perimetros", {}) or {}
     sex = athlete.get("sexo", "M")
-    ethnicity = athlete.get("etnia", "caucasiano")
-    height_cm = athlete.get("altura_cm")
+    sex_num = 1 if sex == "M" else 0
+    eth = (athlete.get("etnia") or "caucasiano").lower()
+    eth_num = 1 if eth.startswith("afr") else 0
+    altura_cm = athlete.get("altura_cm")
     age = evaluation.get("age_at_eval") or athlete.get("idade")
     weight = evaluation.get("peso_kg")
 
-    reilly = bf_reilly_wallace(p)
-    evans = bf_evans(p, sex, ethnicity)
-    jp = bf_jackson_pollock(p, sex, age) if age else None
-    withers = bf_withers(p, sex)
+    rw = bf_reilly_wallace(p)
+    ev7 = bf_evans7(p, sex_num, eth_num)
+    ev3 = bf_evans3(p, sex_num, eth_num)
+    jp = bf_jackson_pollock(p, age) if age else None
+    wt = bf_withers(p)
 
-    bfs = [x for x in (reilly, evans, jp, withers) if x is not None]
+    bfs = [x for x in (rw, ev7, ev3, jp, wt) if x is not None]
     bf_avg = round(sum(bfs) / len(bfs), 2) if bfs else None
 
-    smm = muscle_mass_lee(height_cm, per, sex, age, ethnicity)
-    imc = bmi(weight, height_cm)
+    mm = muscle_mass_lee(altura_cm, p, per, sex_num, eth_num, age)
+    imc = bmi(weight, altura_cm)
     s7 = sum_pregas_7(p)
     s8 = sum_pregas_8(p)
 
-    mg_kg = round(weight * bf_avg / 100.0, 2) if (weight and bf_avg is not None) else None
-    ratio = round(smm / mg_kg, 2) if (smm and mg_kg and mg_kg > 0) else None
+    mg_kg = round(weight * rw / 100.0, 2) if (weight and rw is not None) else None
+    massa_magra = round(weight - mg_kg, 2) if (weight and mg_kg is not None) else None
+    mm_mg = round(mm / mg_kg, 2) if (mm and mg_kg and mg_kg > 0) else None
+    perc_mm = round(mm / weight * 100, 2) if (mm and weight) else None
 
     return {
-        "bf_reilly_wallace": reilly,
-        "bf_evans": evans,
-        "bf_jackson_pollock": jp,
-        "bf_withers": withers,
+        "rw": rw,
+        "evans7": ev7,
+        "evans3": ev3,
+        "jp7": jp,
+        "withers": wt,
         "bf_average": bf_avg,
-        "muscle_mass_kg": smm,
+        "muscle_mass_kg": mm,
+        "perc_mm": perc_mm,
         "fat_mass_kg": mg_kg,
-        "mm_mg_ratio": ratio,
+        "lean_mass_kg": massa_magra,
+        "mm_mg_ratio": mm_mg,
         "imc": imc,
-        "sum_pregas_7": s7,
-        "sum_pregas_8": s8,
-        "status": status_from_bf(bf_avg, sex),
+        "soma7": s7,
+        "soma8": s8,
+        "status_rw": rw_band(rw),
+        "status_soma8": soma8_band(s8),
+        "status_perc_mm": perc_mm_band(perc_mm),
+        "status_mm_mg": mm_mg_band(mm_mg, sex_num),
+        "status_imc": imc_band(imc),
+        # legacy aliases used elsewhere
+        "status": rw_band(rw),
+        "bf_reilly_wallace": rw,
+        "bf_evans": ev3,
+        "bf_jackson_pollock": jp,
+        "bf_withers": wt,
     }

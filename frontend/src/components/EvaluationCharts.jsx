@@ -3,17 +3,18 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 export function EvaluationCharts({ evals }) {
   const data = evals.map((e) => ({
     date: new Date(e.date).toLocaleDateString("pt-PT", { day: "2-digit", month: "short" }),
-    bf: e.metrics?.bf_average,
+    bf: e.metrics?.rw,
     mm: e.metrics?.muscle_mass_kg,
     imc: e.metrics?.imc,
     peso: e.peso_kg,
+    soma8: e.metrics?.soma8,
   }));
   return (
     <div className="grid md:grid-cols-2 gap-6">
-      <ChartBlock title="% Massa Gorda" data={data} dataKey="bf" color="hsl(0 72% 51%)" unit="%" />
+      <ChartBlock title="% Massa Gorda (R&W)" data={data} dataKey="bf" color="hsl(0 72% 51%)" unit="%" />
       <ChartBlock title="Massa Muscular (kg)" data={data} dataKey="mm" color="hsl(var(--primary))" unit=" kg" />
       <ChartBlock title="Peso (kg)" data={data} dataKey="peso" color="hsl(217 91% 60%)" unit=" kg" />
-      <ChartBlock title="IMC" data={data} dataKey="imc" color="hsl(43 96% 50%)" unit="" />
+      <ChartBlock title="Σ 8 pregas" data={data} dataKey="soma8" color="hsl(43 96% 50%)" unit="" />
     </div>
   );
 }

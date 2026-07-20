@@ -1,16 +1,23 @@
-// Client-side mirror of backend formulas — para preview em tempo real.
+// Mirror EXATO do ficheiro Trofense_APP.jsx original para cálculo em tempo real
+const PI_EXCEL = 3.1415;
 
-export function sumPregas7(p) {
-  const keys = ["peito", "tricipital", "subescapular", "axilar", "suprailiaca", "abdominal", "coxa"];
-  const vals = keys.map((k) => p?.[k]);
-  if (vals.some((v) => v == null || v === "")) return null;
-  return vals.reduce((a, b) => a + Number(b), 0);
-}
+const num = (p, ...keys) => {
+  const out = [];
+  for (const k of keys) {
+    const v = p?.[k];
+    if (v == null || v === "") return null;
+    out.push(Number(v));
+  }
+  return out;
+};
 
 export function sumPregas8(p) {
-  const s7 = sumPregas7(p);
-  if (s7 == null || p?.supraespinhal == null || p?.supraespinhal === "") return null;
-  return s7 + Number(p.supraespinhal);
+  const v = num(p, "peito", "tricipital", "subescapular", "axilar", "suprailiaca", "abdominal", "coxa", "gemeo");
+  return v ? +v.reduce((a, b) => a + b, 0).toFixed(2) : null;
+}
+export function sumPregas7(p) {
+  const v = num(p, "peito", "tricipital", "subescapular", "axilar", "suprailiaca", "abdominal", "coxa");
+  return v ? +v.reduce((a, b) => a + b, 0).toFixed(2) : null;
 }
 
 export function bmi(w, hCm) {
@@ -19,106 +26,129 @@ export function bmi(w, hCm) {
   return +(w / (h * h)).toFixed(2);
 }
 
-export function bfJacksonPollock(p, sex, age) {
-  const s = sumPregas7(p);
-  if (s == null || !age) return null;
-  let d;
-  if (sex === "M") d = 1.112 - 0.00043499 * s + 0.00000055 * s * s - 0.00028826 * age;
-  else d = 1.097 - 0.00046971 * s + 0.00000056 * s * s - 0.00012828 * age;
-  if (d <= 0) return null;
-  return +(495 / d - 450).toFixed(2);
-}
-
-export function bfWithers(p, sex) {
-  const s = sumPregas7(p);
-  if (s == null || s <= 0) return null;
-  let d;
-  if (sex === "M") d = 1.0988 - 0.0004 * s;
-  else d = 1.17484 - 0.07229 * Math.log10(s);
-  if (d <= 0) return null;
-  return +(495 / d - 450).toFixed(2);
-}
-
 export function bfReillyWallace(p) {
-  const need = ["abdominal", "coxa", "tricipital", "gemeo"];
-  const v = {};
-  for (const k of need) {
-    if (p?.[k] == null || p?.[k] === "") return null;
-    v[k] = Number(p[k]);
-  }
-  return +(5.174 + 0.124 * v.abdominal + 0.147 * v.coxa + 0.196 * v.tricipital + 0.13 * v.gemeo).toFixed(2);
+  const v = num(p, "coxa", "abdominal", "gemeo");
+  if (!v) return null;
+  const [coxa, abdom, gemeo] = v;
+  return +(5.174 + 0.124 * coxa + 0.147 * abdom + 0.13 * gemeo).toFixed(2);
 }
 
-export function bfEvans(p, sex, ethnicity = "caucasiano") {
-  let s = 0;
-  for (const k of ["abdominal", "coxa", "tricipital"]) {
-    if (p?.[k] == null || p?.[k] === "") return null;
-    s += Number(p[k]);
-  }
-  const isAfro = (ethnicity || "").toLowerCase().startsWith("afr");
-  let bf;
-  if (sex === "M") bf = 8.997 + 0.24658 * s - (isAfro ? 6.343 : 0) - (!isAfro ? 1.998 : 0);
-  else bf = 10.566 + 0.20345 * s - (isAfro ? 6.343 : 0) - (!isAfro ? 1.998 : 0);
-  return +bf.toFixed(2);
+export function bfEvans7(p, sexNum, ethNum) {
+  const v = num(p, "peito", "tricipital", "bicipital", "axilar", "suprailiaca", "abdominal", "coxa");
+  if (!v) return null;
+  const s = v.reduce((a, b) => a + b, 0);
+  return +(10.566 + 0.12077 * s - 8.057 * sexNum - 2.545 * ethNum).toFixed(2);
 }
 
-export function muscleMassLee(heightCm, per, sex, age, ethnicity = "caucasiano") {
-  if (!heightCm || !age) return null;
-  const cag = per?.braco;
-  const coxa = per?.coxaD ?? per?.coxaE;
-  const ccg = per?.gemeo;
-  if (cag == null || coxa == null || ccg == null || cag === "" || coxa === "" || ccg === "") return null;
-  const ht = heightCm / 100;
-  const sexV = sex === "M" ? 1 : 0;
-  const eth = (ethnicity || "").toLowerCase();
-  const race = eth.startsWith("asi") ? 1.1 : eth.startsWith("afr") ? 1.4 : 0;
-  const smm =
-    ht * (0.00744 * cag * cag + 0.00088 * coxa * coxa + 0.00441 * ccg * ccg) +
-    2.4 * sexV -
+export function bfEvans3(p, sexNum, ethNum) {
+  const v = num(p, "abdominal", "coxa", "tricipital");
+  if (!v) return null;
+  const s = v.reduce((a, b) => a + b, 0);
+  return +(8.997 + 0.24658 * s - 6.343 * sexNum - 1.998 * ethNum).toFixed(2);
+}
+
+export function bfJacksonPollock(p, age) {
+  const v = num(p, "peito", "tricipital", "bicipital", "subescapular", "abdominal", "coxa", "suprailiaca");
+  if (!v || !age) return null;
+  const s = v.reduce((a, b) => a + b, 0);
+  const d = 1.112 - 0.00043499 * s + 0.00000055 * s * s - 0.00028826 * age;
+  if (d <= 0) return null;
+  return +((4.95 / d - 4.5) * 100).toFixed(2);
+}
+
+export function bfWithers(p) {
+  const v = num(p, "tricipital", "bicipital", "subescapular", "abdominal", "supraespinhal", "coxa", "gemeo");
+  if (!v) return null;
+  const s = v.reduce((a, b) => a + b, 0);
+  const d = 1.0988 - 0.0004 * s;
+  if (d <= 0) return null;
+  return +(495 / d - 450).toFixed(2);
+}
+
+export function muscleMassLee(alturaCm, p, per, sexNum, ethNum, age) {
+  if (!alturaCm || age == null) return null;
+  const braco = per?.braco, coxaD = per?.coxaD ?? per?.coxaE, gemPer = per?.gemeo;
+  const tri = p?.tricipital, sup = p?.supraespinhal, gemPreg = p?.gemeo;
+  for (const v of [braco, coxaD, gemPer, tri, sup, gemPreg]) if (v == null || v === "") return null;
+  const alturaM = alturaCm / 100;
+  const mm =
+    alturaM *
+      (0.00744 * Math.pow(braco - (PI_EXCEL * tri) / 10, 2) +
+        0.00088 * Math.pow(coxaD - (PI_EXCEL * sup) / 10, 2) +
+        0.00441 * Math.pow(gemPer - (PI_EXCEL * gemPreg) / 10, 2)) +
+    2.4 * sexNum -
     0.048 * age +
-    race +
+    ethNum +
     7.8;
-  return +smm.toFixed(2);
+  return +mm.toFixed(2);
 }
 
-export function statusFromBf(bf, sex) {
-  if (bf == null) return "—";
-  if (sex === "M") return bf < 12 ? "Ótimo" : bf < 18 ? "Atenção" : "Alto";
-  return bf < 20 ? "Ótimo" : bf < 26 ? "Atenção" : "Alto";
+// ---------- Bandas (pontos de corte do original) ----------
+export function rwBand(rw) {
+  if (rw == null) return { label: "—", color: "muted" };
+  if (rw < 9) return { label: "Ótimo", color: "otimo" };
+  if (rw <= 10) return { label: "Atenção", color: "atencao" };
+  return { label: "Alto", color: "alto" };
+}
+export function soma8Band(s8) {
+  if (s8 == null) return { label: "—", color: "muted" };
+  if (s8 < 65) return { label: "Baixo", color: "otimo" };
+  if (s8 <= 75) return { label: "Médio", color: "atencao" };
+  return { label: "Alto", color: "alto" };
+}
+export function percMMBand(pm) {
+  if (pm == null) return { label: "—", color: "muted" };
+  if (pm >= 45) return { label: "Ótimo", color: "otimo" };
+  if (pm >= 40) return { label: "Atenção", color: "atencao" };
+  return { label: "Baixo", color: "alto" };
+}
+export function mmMgBand(r, sexNum) {
+  if (r == null) return { label: "—", color: "muted" };
+  const min = sexNum === 1 ? 4 : 2;
+  return r >= min ? { label: "Normal", color: "otimo" } : { label: "Baixo", color: "alto" };
+}
+export function imcBand(imc) {
+  if (imc == null) return { label: "—", color: "muted" };
+  if (imc < 18.5) return { label: "Baixo peso", color: "alto" };
+  if (imc < 25) return { label: "Normal", color: "otimo" };
+  if (imc < 30) return { label: "Sobrepeso", color: "atencao" };
+  return { label: "Obesidade", color: "alto" };
 }
 
 export function computeAll(evaluation, athlete) {
   const p = evaluation?.pregas || {};
   const per = evaluation?.perimetros || {};
-  const sex = athlete?.sexo || "M";
-  const eth = athlete?.etnia || "caucasiano";
-  const h = athlete?.altura_cm;
+  const sexNum = athlete?.sexo === "M" ? 1 : 0;
+  const eth = (athlete?.etnia || "caucasiano").toLowerCase();
+  const ethNum = eth.startsWith("afr") ? 1 : 0;
+  const alturaCm = athlete?.altura_cm;
   const age = evaluation?.age_at_eval ?? athlete?.idade;
   const w = evaluation?.peso_kg;
 
-  const reilly = bfReillyWallace(p);
-  const evans = bfEvans(p, sex, eth);
-  const jp = age ? bfJacksonPollock(p, sex, age) : null;
-  const withers = bfWithers(p, sex);
-  const bfs = [reilly, evans, jp, withers].filter((v) => v != null);
+  const rw = bfReillyWallace(p);
+  const evans7 = bfEvans7(p, sexNum, ethNum);
+  const evans3 = bfEvans3(p, sexNum, ethNum);
+  const jp7 = age ? bfJacksonPollock(p, age) : null;
+  const withers = bfWithers(p);
+  const bfs = [rw, evans7, evans3, jp7, withers].filter((v) => v != null);
   const bf_average = bfs.length ? +(bfs.reduce((a, b) => a + b, 0) / bfs.length).toFixed(2) : null;
-  const smm = muscleMassLee(h, per, sex, age, eth);
-  const imc = bmi(w, h);
-  const mg_kg = w && bf_average != null ? +((w * bf_average) / 100).toFixed(2) : null;
-  const ratio = smm && mg_kg ? +(smm / mg_kg).toFixed(2) : null;
+  const mm = muscleMassLee(alturaCm, p, per, sexNum, ethNum, age);
+  const imc = bmi(w, alturaCm);
+  const s8 = sumPregas8(p);
+  const s7 = sumPregas7(p);
+  const mg_kg = w && rw != null ? +((w * rw) / 100).toFixed(2) : null;
+  const lean = w && mg_kg != null ? +(w - mg_kg).toFixed(2) : null;
+  const mm_mg = mm && mg_kg ? +(mm / mg_kg).toFixed(2) : null;
+  const perc_mm = mm && w ? +((mm / w) * 100).toFixed(2) : null;
 
   return {
-    bf_reilly_wallace: reilly,
-    bf_evans: evans,
-    bf_jackson_pollock: jp,
-    bf_withers: withers,
-    bf_average,
-    muscle_mass_kg: smm,
-    fat_mass_kg: mg_kg,
-    mm_mg_ratio: ratio,
-    imc,
-    sum_pregas_7: sumPregas7(p),
-    sum_pregas_8: sumPregas8(p),
-    status: statusFromBf(bf_average, sex),
+    rw, evans7, evans3, jp7, withers,
+    bf_average, muscle_mass_kg: mm, perc_mm,
+    fat_mass_kg: mg_kg, lean_mass_kg: lean,
+    mm_mg_ratio: mm_mg, imc,
+    soma7: s7, soma8: s8,
+    // legacy aliases
+    bf_reilly_wallace: rw, bf_evans: evans3, bf_jackson_pollock: jp7, bf_withers: withers,
+    status: rwBand(rw).label,
   };
 }

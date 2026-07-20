@@ -119,13 +119,28 @@ export default function AthleteProfile() {
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
-          <Kpi label="Peso" value={last?.peso_kg} unit="kg" testid="kpi-peso" />
-          <Kpi label="% MG" value={metrics?.bf_average} unit="%" testid="kpi-mg" />
-          <Kpi label="Massa Muscular" value={metrics?.muscle_mass_kg} unit="kg" testid="kpi-mm" />
-          <Kpi label="IMC" value={metrics?.imc} testid="kpi-imc" />
-          <Kpi label="Rácio MM/MG" value={metrics?.mm_mg_ratio} testid="kpi-ratio" />
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mt-6">
+          <Kpi label="Peso" value={last?.peso_kg ?? athlete.peso_atual_kg} unit="kg" testid="kpi-peso" />
+          <Kpi label="% MG (R&W)" value={metrics?.rw} unit="%" testid="kpi-mg" />
+          <Kpi label="Massa Gorda" value={metrics?.fat_mass_kg} unit="kg" testid="kpi-mg-kg" />
+          <Kpi label="Massa Magra" value={metrics?.lean_mass_kg} unit="kg" testid="kpi-lean" />
+          <Kpi label="Massa Muscular (Lee)" value={metrics?.muscle_mass_kg} unit="kg" testid="kpi-mm" />
+          <Kpi label="MM/MG · IMC · Σ8" value={metrics ? `${metrics.mm_mg_ratio ?? "—"} · ${metrics.imc ?? "—"} · ${metrics.soma8 != null ? Math.round(metrics.soma8) : "—"}` : "—"} testid="kpi-multi" />
         </div>
+        {metrics && (
+          <div className="mt-4 pt-4 border-t">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold mb-2">
+              Comparativo entre métodos · % MG
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <MethodBox label="Reilly & Wallace" value={metrics.rw} />
+              <MethodBox label="Jackson-Pollock 7" value={metrics.jp7} />
+              <MethodBox label="Evans 7" value={metrics.evans7} />
+              <MethodBox label="Evans 3" value={metrics.evans3} />
+              <MethodBox label="Withers" value={metrics.withers} />
+            </div>
+          </div>
+        )}
       </Card>
 
       <Tabs defaultValue="avaliacoes">
@@ -162,10 +177,11 @@ export default function AthleteProfile() {
                       <div className="text-muted-foreground text-xs">{e.peso_kg ? `${e.peso_kg} kg` : ""}</div>
                     </div>
                     <div className="flex items-center gap-4 num text-sm">
-                      <span>MG <b>{e.metrics?.bf_average ?? "—"}%</b></span>
+                      <span>MG(R&W) <b>{e.metrics?.rw ?? "—"}%</b></span>
                       <span>MM <b>{e.metrics?.muscle_mass_kg ?? "—"} kg</b></span>
                       <span>IMC <b>{e.metrics?.imc ?? "—"}</b></span>
-                      <StatusPill status={e.metrics?.status} />
+                      <span>Σ8 <b>{e.metrics?.soma8 != null ? Math.round(e.metrics.soma8) : "—"}</b></span>
+                      <StatusPill status={e.metrics?.status_rw ?? e.metrics?.status} />
                       {isEditor && (
                         <Button
                           size="sm"
@@ -211,6 +227,15 @@ function Kpi({ label, value, unit, testid }) {
         {value ?? "—"}
         {value != null && unit ? <span className="text-lg text-muted-foreground ml-1">{unit}</span> : null}
       </div>
+    </div>
+  );
+}
+
+function MethodBox({ label, value }) {
+  return (
+    <div className="p-3 rounded-md border bg-secondary/40">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
+      <div className="num font-display text-2xl font-bold">{value ?? "—"}<span className="text-sm text-muted-foreground">%</span></div>
     </div>
   );
 }

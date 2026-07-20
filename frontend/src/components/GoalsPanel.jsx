@@ -13,7 +13,7 @@ export function GoalsPanel({ athlete, evaluations, onSaved, isEditor }) {
   const [saving, setSaving] = useState(false);
 
   const last = evaluations[evaluations.length - 1];
-  const currentBf = last?.metrics?.bf_average;
+  const currentBf = last?.metrics?.rw;
   const currentWeight = last?.peso_kg;
 
   // peso alvo = peso * (100 - bf) / (100 - bf_target)
@@ -25,7 +25,7 @@ export function GoalsPanel({ athlete, evaluations, onSaved, isEditor }) {
   const progress = (() => {
     if (!goal || currentBf == null) return 0;
     // 0% = starting BF, 100% = target BF (menor)
-    const start = evaluations[0]?.metrics?.bf_average ?? currentBf;
+    const start = evaluations[0]?.metrics?.rw ?? currentBf;
     if (start <= goal.bf_target_pct) return 100;
     const p = ((start - currentBf) / (start - goal.bf_target_pct)) * 100;
     return Math.max(0, Math.min(100, p));
