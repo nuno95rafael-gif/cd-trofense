@@ -102,7 +102,6 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
                 <Row label="% Massa Muscular" v={m.perc_mm} unit="%" />
                 <Row label="MM / MG" v={m.mm_mg_ratio} />
                 <Row label="IMC" v={m.imc} />
-                <Row label="Σ 7 pregas" v={m.soma7 != null ? Math.round(m.soma7) : null} />
                 <Row label="Σ 8 pregas" v={m.soma8 != null ? Math.round(m.soma8) : null} />
                 {m.ratio_ca != null && <Row label="Rácio cintura/anca" v={m.ratio_ca} />}
               </div>

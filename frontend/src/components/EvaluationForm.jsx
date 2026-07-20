@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { computeAll } from "@/lib/formulas";
 import { Card } from "@/components/ui/card";
@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/StatusPill";
+import { PhotoCropDialog } from "@/components/PhotoCropDialog";
+import { Upload, X, Crop } from "lucide-react";
 import { toast } from "sonner";
 
 const PREGAS = [
@@ -51,21 +53,53 @@ export function EvaluationForm({ athlete, onSaved }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post(`/athletes/${athlete.id}/evaluations`, {
+      const { data: newEval } = await api.post(`/athletes/${athlete.id}/evaluations`, {
         date,
         peso_kg: peso ? Number(peso) : null,
         age_at_eval: age ? Number(age) : null,
         pregas: p,
         perimetros: per,
       });
+      // Upload optional photos linked to this evaluation
+      for (const kind of ["frontal", "perfil", "costas"]) {
+        const blob = photoBlobs[kind];
+        if (!blob) continue;
+        const fd = new FormData();
+        fd.append("file", new File([blob], `${kind}.jpg`, { type: "image/jpeg" }));
+        fd.append("date", date);
+        fd.append("kind", kind);
+        fd.append("evaluation_id", newEval.id);
+        try {
+          await api.post(`/athletes/${athlete.id}/photos`, fd, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        } catch (err) {
+          toast.error(`Foto ${kind}: ${formatApiError(err.response?.data?.detail)}`);
+        }
+      }
       toast.success("Avaliação guardada");
       setP({}); setPer({}); setPeso("");
+      setPhotoBlobs({ frontal: null, perfil: null, costas: null });
       onSaved && onSaved();
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
     } finally {
       setSaving(false);
     }
+  };
+
+  const pickFile = (kind) => fileRefs.current[kind]?.click();
+  const onFileSelected = (kind) => (ev) => {
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    setCropState({ src: URL.createObjectURL(file), kind });
+    ev.target.value = "";
+  };
+  const onCropped = (blob) => {
+    if (!cropState) return;
+    URL.revokeObjectURL(cropState.src);
+    setPhotoBlobs((prev) => ({ ...prev, [cropState.kind]: blob }));
+    setCropState(null);
   };
 
   return (
@@ -145,6 +179,11 @@ function Metric({ label, value, unit, strong }) {
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`num tracking-tight ${strong ? "text-2xl font-bold" : "text-lg font-semibold"}`}>
         {value ?? "—"}{value != null && unit ? <span className="text-sm text-muted-foreground ml-0.5">{unit}</span> : null}
+      </div>
+    </div>
+  );
+}
+     {value ?? "—"}{value != null && unit ? <span className="text-sm text-muted-foreground ml-0.5">{unit}</span> : null}
       </div>
     </div>
   );

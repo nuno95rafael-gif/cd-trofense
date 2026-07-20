@@ -482,6 +482,7 @@ async def upload_photo(
     file: UploadFile = File(...),
     date: str = Form(...),
     kind: str = Form(...),  # frontal | perfil | costas
+    evaluation_id: Optional[str] = Form(None),
     user: dict = Depends(require_editor),
 ):
     if kind not in ("frontal", "perfil", "costas"):
@@ -497,6 +498,7 @@ async def upload_photo(
     doc = {
         "id": photo_id,
         "athlete_id": aid,
+        "evaluation_id": evaluation_id,
         "date": date,
         "kind": kind,
         "storage_path": result["path"],
@@ -509,6 +511,47 @@ async def upload_photo(
     await db.photos.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+
+@api.patch("/photos/{pid}")
+async def update_photo(pid: str, body: dict, _: dict = Depends(require_editor)):
+    upd = {}
+    if "kind" in body:
+        if body["kind"] not in ("frontal", "perfil", "costas"):
+            raise HTTPException(status_code=400, detail="Tipo de foto inválido")
+        upd["kind"] = body["kind"]
+    if "evaluation_id" in body:
+        upd["evaluation_id"] = body["evaluation_id"]
+    if "date" in body:
+        upd["date"] = body["date"]
+    if not upd:
+        return {"ok": True}
+    r = await db.photos.update_one({"id": pid}, {"$set": upd})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Foto não encontrada")
+    return {"ok": True}
+
+
+@api.put("/photos/{pid}/replace")
+async def replace_photo(pid: str, file: UploadFile = File(...), _: dict = Depends(require_editor)):
+    doc = await db.photos.find_one({"id": pid}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Foto não encontrada")
+    data = await file.read()
+    ext = (file.filename or "").split(".")[-1].lower() or "jpg"
+    if ext not in ("jpg", "jpeg", "png", "webp"):
+        ext = "jpg"
+    ctype = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext]
+    new_photo_id = new_id()
+    path = f"{APP_NAME}/photos/{doc['athlete_id']}/{new_photo_id}.{ext}"
+    result = put_object(path, data, ctype)
+    await db.photos.update_one({"id": pid}, {"$set": {
+        "storage_path": result["path"],
+        "content_type": ctype,
+        "size": result.get("size"),
+        "updated_at": now_iso(),
+    }})
+    return {"ok": True}
 
 
 @api.get("/photos/{pid}/download")

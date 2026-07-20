@@ -18,7 +18,7 @@ import { GoalsPanel } from "@/components/GoalsPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Plus } from "lucide-react";
 
 export default function AthleteProfile() {
   const { id } = useParams();
@@ -28,6 +28,7 @@ export default function AthleteProfile() {
   const [evals, setEvals] = useState([]);
   const [weighins, setWeighins] = useState([]);
   const [editOpen, setEditOpen] = useState(false);
+  const [newEvalOpen, setNewEvalOpen] = useState(false);
 
   const reload = async () => {
     const a = await api.get(`/athletes/${id}`);
@@ -161,14 +162,28 @@ export default function AthleteProfile() {
               <EvaluationCharts evals={evals} />
             </Card>
           )}
-          {isEditor && (
-            <Card className="p-6">
-              <h3 className="font-display text-xl font-bold mb-4">Nova avaliação</h3>
-              <EvaluationForm athlete={athlete} onSaved={reload} />
-            </Card>
-          )}
           <Card className="p-6">
-            <h3 className="font-display text-xl font-bold mb-4">Histórico ({evals.length})</h3>
+            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+              <h3 className="font-display text-xl font-bold">Histórico ({evals.length})</h3>
+              {isEditor && (
+                <Dialog open={newEvalOpen} onOpenChange={setNewEvalOpen}>
+                  <DialogTrigger asChild>
+                    <Button data-testid="new-eval-btn" className="gap-2">
+                      <Plus className="w-4 h-4" /> Registar avaliação
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Nova avaliação · {athlete.nome}</DialogTitle>
+                    </DialogHeader>
+                    <EvaluationForm
+                      athlete={athlete}
+                      onSaved={() => { setNewEvalOpen(false); reload(); }}
+                    />
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
             {evals.length === 0 ? (
               <p className="text-muted-foreground text-sm">Sem avaliações registadas.</p>
             ) : (
@@ -194,7 +209,7 @@ export default function AthleteProfile() {
         </TabsContent>
 
         <TabsContent value="fotos">
-          <PhotosPanel athleteId={id} isEditor={isEditor} />
+          <PhotosPanel athleteId={id} evaluations={evals} isEditor={isEditor} />
         </TabsContent>
 
         <TabsContent value="objetivos">
