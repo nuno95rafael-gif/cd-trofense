@@ -1,0 +1,51 @@
+{
+  "summary": "Frontend E2E testing of CD Trofense confirms the P0 fix (EvaluationForm crash) is resolved. Login → Dashboard (18 atletas) → Athlete profile → open 'Nova avaliação' dialog → live metrics computed → save → history increments → all tabs (Avaliações, Pesagens, Fotos, Objetivos) render without crashes. All 3 photo slots (Frente/Perfil/Costas) with correct data-testids and hidden file inputs are present in the evaluation form.",
+  "tested_scope": ["frontend", "auth", "integration"],
+  "passed": [
+    "Login with admin@trofense.pt / Trofense2026! redirects to Dashboard",
+    "Dashboard lists exactly 18 atletas as table rows (athlete-row-0..17)",
+    "Click athlete row navigates to /atletas/{id} and shows athlete-header-name (André Gomes)",
+    "AthleteProfile KPI cards render (kpi-peso, kpi-mg, kpi-mg-kg, kpi-lean, kpi-mm, kpi-mmmg, kpi-imc, kpi-soma8 — 8 KPIs)",
+    "P0 FIX VERIFIED: click new-eval-btn opens Dialog 'Nova avaliação · André Gomes' WITHOUT compile crash / white screen",
+    "Dialog contains section 'FOTOS (opcional · ficam associadas a esta avaliação)' with 3 visible slots",
+    "All 3 photo slot testids present: eval-photo-slot-frontal / -perfil / -costas",
+    "All 3 hidden file inputs present: eval-photo-input-frontal / -perfil / -costas",
+    "Form fields present: eval-date, eval-weight, eval-age, preg-* (10), per-* (6), save-eval-btn",
+    "P1 VERIFIED: filling peso=70 + pregas + perimetros computes live metrics (20 non-dash values including R&W 11.72%, JP7 8.98%, Evans7 10.72%, Evans3 11.53%, Withers 11.93%, MM 34.61kg, IMC 21.85, Σ8 79) — NOT all '—'",
+    "Saving evaluation closes the Dialog and Histórico count increments from (1) to (2)",
+    "Comparativo entre métodos section shows all 5 methods (R&W, JP7, Evans7, Evans3, Withers)",
+    "Aba Fotos: PhotosPanel renders with photos-eval-selector dropdown and 3 photo slots (photo-input-frontal/perfil/costas + upload-*-btn) — no crash",
+    "Aba Pesagens: WeighinsPanel renders (Nova pesagem, Evolução chart, Histórico) — no crash",
+    "Aba Objetivos: GoalsPanel renders (% MG alvo input, Atual/Peso atual/Peso alvo, Progresso bar) — no crash",
+    "No pageerror events; only benign warnings: Radix Dialog aria-describedby (a11y) and Recharts width/height=-1 during initial render (harmless)"
+  ],
+  "failed": [],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Nova avaliação Dialog", "issues": ["A11y: DialogContent missing aria-describedby/Description (Radix warning). Not blocking, but recommended to add DialogDescription."]},
+      {"screen": "AthleteProfile / EvaluationCharts", "issues": ["Recharts logs 'width/height=-1' warnings on initial render (ResponsiveContainer measures 0 while dialog animates). Purely cosmetic — charts still render correctly after layout settles."]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_2.json"],
+  "action_items": [
+    "OPTIONAL a11y polish: add <DialogDescription> inside DialogHeader of Nova avaliação (silences Radix warning).",
+    "OPTIONAL: give EvaluationCharts' ResponsiveContainer a minHeight to eliminate Recharts warnings."
+  ],
+  "critical_code_review_comments": [
+    "EvaluationForm.jsx (241 LOC) is now clean — no duplicate JSX fragment; photoBlobs/photoPreviews/cropState state and 3-slot photo section are correctly wired to PhotoCropDialog and posted with evaluation_id after eval creation.",
+    "Photo upload runs after the eval POST returns newEval.id — good ordering; per-photo failures are caught with toast and do not block save (acceptable UX).",
+    "URL.revokeObjectURL is called on cleanup and on cancel — no obvious blob leaks.",
+    "AthleteProfile.jsx: Dialog for new eval opens/closes via controlled state newEvalOpen — correct.",
+    "Minor: consider adding data-testid on Dialog title/description for stronger test targeting (currently we rely on role='dialog' text)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100%"},
+  "seed_data_creation": "Created 1 new evaluation for athlete 'André Gomes' during the save-flow test (Peso 70 + full pregas/perimetros). Histórico went from (1) to (2). Please delete this test evaluation if it pollutes demo data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "P0 crash on EvaluationForm.jsx is fixed and end-to-end save flow works. Real file upload via PhotoCropDialog was NOT exercised in headless (per request); slots and inputs verified present. If retesting photos: use setInputFiles on [data-testid='eval-photo-input-frontal'], expect PhotoCropDialog to open (react-easy-crop), then a Guardar button inside the crop dialog to produce a Blob. Backend POST /api/athletes/{aid}/photos accepts multipart with fields: file, date, kind, evaluation_id.",
+  "rca_of_the_issue": "Previous crash was caused by leftover duplicate JSX fragment (lines 186-190) in EvaluationForm.jsx. Fix by main agent: removed the fragment and added state (photoBlobs, photoPreviews, cropState, fileRefs) plus a 3-slot fotos section rendering PhotoCropDialog. Verified: dialog opens, live metrics compute, save persists, history increments."
+}

@@ -38,6 +38,10 @@ export function EvaluationForm({ athlete, onSaved }) {
   const [p, setP] = useState({});
   const [per, setPer] = useState({});
   const [saving, setSaving] = useState(false);
+  const [photoBlobs, setPhotoBlobs] = useState({ frontal: null, perfil: null, costas: null });
+  const [photoPreviews, setPhotoPreviews] = useState({ frontal: null, perfil: null, costas: null });
+  const [cropState, setCropState] = useState(null); // { src, kind }
+  const fileRefs = useRef({});
 
   const setPregVal = (k) => (e) => setP((s) => ({ ...s, [k]: e.target.value === "" ? "" : Number(e.target.value) }));
   const setPerVal = (k) => (e) => setPer((s) => ({ ...s, [k]: e.target.value === "" ? "" : Number(e.target.value) }));
@@ -79,7 +83,9 @@ export function EvaluationForm({ athlete, onSaved }) {
       }
       toast.success("Avaliação guardada");
       setP({}); setPer({}); setPeso("");
+      Object.values(photoPreviews).forEach((u) => u && URL.revokeObjectURL(u));
       setPhotoBlobs({ frontal: null, perfil: null, costas: null });
+      setPhotoPreviews({ frontal: null, perfil: null, costas: null });
       onSaved && onSaved();
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
@@ -99,7 +105,19 @@ export function EvaluationForm({ athlete, onSaved }) {
     if (!cropState) return;
     URL.revokeObjectURL(cropState.src);
     setPhotoBlobs((prev) => ({ ...prev, [cropState.kind]: blob }));
+    setPhotoPreviews((prev) => {
+      if (prev[cropState.kind]) URL.revokeObjectURL(prev[cropState.kind]);
+      return { ...prev, [cropState.kind]: URL.createObjectURL(blob) };
+    });
     setCropState(null);
+  };
+
+  const removePhoto = (kind) => {
+    setPhotoPreviews((prev) => {
+      if (prev[kind]) URL.revokeObjectURL(prev[kind]);
+      return { ...prev, [kind]: null };
+    });
+    setPhotoBlobs((prev) => ({ ...prev, [kind]: null }));
   };
 
   return (
@@ -132,6 +150,54 @@ export function EvaluationForm({ athlete, onSaved }) {
         </div>
       </div>
 
+      <div>
+        <h4 className="text-xs uppercase tracking-widest font-semibold text-muted-foreground mb-3">Fotos (opcional · ficam associadas a esta avaliação)</h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            { k: "frontal", l: "Frente" },
+            { k: "perfil", l: "Perfil" },
+            { k: "costas", l: "Costas" },
+          ].map(({ k, l }) => (
+            <div key={k} className="space-y-2">
+              <div className="text-sm font-semibold">{l}</div>
+              <div
+                className="relative bg-secondary rounded-md overflow-hidden border cursor-pointer hover:border-primary/60 transition"
+                style={{ aspectRatio: "3 / 4" }}
+                onClick={() => !photoPreviews[k] && pickFile(k)}
+                data-testid={`eval-photo-slot-${k}`}
+              >
+                {photoPreviews[k] ? (
+                  <>
+                    <img src={photoPreviews[k]} alt={l} className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      <Button type="button" size="icon" variant="secondary" onClick={(e) => { e.stopPropagation(); pickFile(k); }} title="Substituir" data-testid={`eval-photo-replace-${k}`}>
+                        <Crop className="w-4 h-4" />
+                      </Button>
+                      <Button type="button" size="icon" variant="destructive" onClick={(e) => { e.stopPropagation(); removePhoto(k); }} title="Remover" data-testid={`eval-photo-remove-${k}`}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-xs gap-2">
+                    <Upload className="w-8 h-8 opacity-50" />
+                    <span>Carregar foto</span>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={(el) => (fileRefs.current[k] = el)}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={onFileSelected(k)}
+                data-testid={`eval-photo-input-${k}`}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
       <Card className="p-5 bg-secondary/40">
         <div className="flex flex-wrap justify-between items-start gap-4">
           <div>
@@ -160,6 +226,16 @@ export function EvaluationForm({ athlete, onSaved }) {
           {saving ? "A guardar..." : "Guardar avaliação"}
         </Button>
       </div>
+
+      <PhotoCropDialog
+        open={!!cropState}
+        src={cropState?.src}
+        onCancel={() => {
+          if (cropState?.src) URL.revokeObjectURL(cropState.src);
+          setCropState(null);
+        }}
+        onCropped={onCropped}
+      />
     </form>
   );
 }
@@ -179,11 +255,6 @@ function Metric({ label, value, unit, strong }) {
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`num tracking-tight ${strong ? "text-2xl font-bold" : "text-lg font-semibold"}`}>
         {value ?? "—"}{value != null && unit ? <span className="text-sm text-muted-foreground ml-0.5">{unit}</span> : null}
-      </div>
-    </div>
-  );
-}
-     {value ?? "—"}{value != null && unit ? <span className="text-sm text-muted-foreground ml-0.5">{unit}</span> : null}
       </div>
     </div>
   );
