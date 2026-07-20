@@ -1,0 +1,40 @@
+{
+  "summary": "First-finish smoke pass. Backend endpoints (auth, athletes CRUD, evaluations with all body-fat formulas, weighins, goals, users, viewer 403, monthly report, photo upload/download/delete) all verified working against public URL. Frontend login, dashboard, sidebar nav (new athlete, users, theme toggle) verified via Playwright. Formulas return valid metrics (bf_reilly_wallace=11.41, bf_evans=15.63, bf_jackson_pollock=9.38, bf_withers=12.44, bf_average=12.21, mm=39.11kg, imc=23.15, status=Atenção).",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "POST /api/auth/login with admin@trofense.pt returns user+token (200)",
+    "POST /api/auth/login wrong password returns 401",
+    "GET /api/auth/me with Bearer token returns user (200)",
+    "POST /api/athletes creates athlete (PT schema: nome, sexo, altura_cm, idade, posicao) — 200",
+    "GET /api/athletes returns list (200)",
+    "POST /api/athletes/{id}/evaluations with pregas+perimetros returns metrics object with all fields (bf_reilly_wallace, bf_evans, bf_jackson_pollock, bf_withers, bf_average, muscle_mass_kg, imc, mm_mg_ratio, status) — all values > 0",
+    "POST/GET /api/athletes/{id}/weighins works (200)",
+    "PUT /api/athletes/{id}/goal {bf_target_pct:10} returns {ok:true}",
+    "POST /api/users creates viewer (200); duplicate email returns 400; self-deactivation returns 400",
+    "Viewer role: POST /api/athletes returns 403 (authorization enforced)",
+    "POST /api/athletes/{id}/photos with multipart (file + date + kind) uploads to Emergent storage (200, 285 bytes)",
+    "GET /api/photos/{pid}/download?auth=TOKEN returns image bytes (200)",
+    "DELETE /api/photos/{pid} marks is_deleted (200)",
+    "GET /api/reports/monthly?month_a=2026-01&month_b=2026-02 returns {rows:[...]} (200)",
+    "Frontend: /login loads, login submits, redirects to / (dashboard)",
+    "Frontend: sidebar visible with new-athlete-btn, nav-users, toggle-theme-btn testids",
+    "Frontend: click new-athlete-btn navigates to /atletas/novo",
+    "Frontend: click nav-users navigates to /utilizadores",
+    "Frontend: no console errors on login/dashboard load"
+  ],
+  "failed": [
+    {
+      "area": "Frontend testid",
+      "issue": "'nav-dashboard' data-testid missing on Dashboard sidebar link (link visually present as 'Dashboard'); other nav items (nav-users, nav-backup, nav-report) present",
+      "evidence": "await page.query_selector('[data-testid=\"nav-dashboard\"]') returned null; screenshot shows Dashboard link is highlighted in sidebar",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "OPTIONAL: Add data-testid='nav-dashboard' to Dashboard sidebar link in Layout/Sidebar component to match convention with nav-users/nav-report/nav-backup (does not affect functionality)."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "95%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Photo endpoint requires 'date' and 'kind' as form fields (in addition to file). Download endpoint uses ?auth=TOKEN query param (not Bearer header) — this is by design for <img src> usage. Frontend deep flows (create athlete full form, evaluation live results, weighin history/chart, goal target weight calc) not tested end-to-end due to first-finish latency scope; core routes reachable and no runtime errors observed. Recommend fuller frontend flow testing in next iteration."
+}
