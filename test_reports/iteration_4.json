@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 4: validated the P0 bug fix (DELETE /api/users/{id}) plus 4 new features — athlete email/contacto fields, simplified team-goals PDF, N/A progress explainer for athletes with 1 evaluation, and send-report-by-email dialog. Backend: 6/6 pytest passed. Frontend: 12/12 UI acceptance criteria passed end-to-end. NO real emails were sent.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "P0 BUG FIX — Delete user: created viewer via UI (create-user-btn) then deleted via delete-user-{id} + confirm-delete-user-{id} → row disappears + 'Utilizador apagado' toast + user removed from GET /api/users. Backend test also confirms DELETE returns 200.",
+    "P0 GUARDRAIL — DELETE /api/users/{admin_id} returns 400 with detail containing 'próprio' (Não pode apagar-se a si próprio).",
+    "DELETE /api/users/{non-existent uuid} returns 404.",
+    "Athlete email/contacto: PUT /api/athletes/{aid} accepts email + contacto and GET returns them persisted. UI: Edit dialog exposes data-testid=athlete-email and athlete-contacto inputs.",
+    "PDF Objetivos de Equipa: /objetivos-equipa → click download-team-goals-pdf triggers file download 'trofense_objetivos_equipa_2026-07-20.pdf' without errors.",
+    "Progress explainer: André Gomes (1 evaluation) profile tab-objetivos shows 'N/A' instead of 0/100% and explanatory text mentioning '1 avaliação registada'.",
+    "Send report dialog: send-report-btn is rendered in header for editor; click opens dialog with pre-filled athlete email, editable message textarea, and submit button. Dialog was CLOSED without submitting to avoid consuming email credits.",
+    "POST /api/athletes/{aid}/send-report is wired (accepts pdf_base64+recipient_email; returns 503 when EMERGENT_EMAIL_KEY missing — expected without real integration key)."
+  ],
+  "failed": [],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration_4.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py (~803 LOC) — approaching the 700-line threshold. Consider splitting into modules: routers/users.py, routers/athletes.py, routers/evaluations.py, routers/photos.py, routers/email.py. Not urgent but recommended before next feature.",
+    "SendReportDialog.jsx: 'send-report-message' textarea is populated with a default multiline template. Fine, but if the user leaves it as-is and the athlete's name isn't in the template, ensure the backend HTML template (which does inject athlete.nome in the greeting) is what's used. Currently backend HTML greeting overrides — OK.",
+    "AthleteIn model now has 12+ optional fields; input validation is minimal (no EmailStr on athlete.email or phone regex on contacto). Non-blocking but recommend upgrading email to EmailStr for consistency.",
+    "PUT /api/athletes/{aid} uses body.model_dump() with default None values — this OVERWRITES any fields the client didn't send back. UI currently sends the full form so it works, but consider using exclude_unset=True to make partial updates safe.",
+    "delete_user endpoint has no cascade — an editor could delete a user that has created evaluations/weighins; the created_by ids in evaluations become orphans. Not a bug per current UX (created_by_name shows '—') but worth documenting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (new file — pytest regression suite for iteration 4)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (12/12)"},
+  "test_credentials": "admin@trofense.pt / Trofense2026! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created + deleted 3 TEST_ viewers via API + 1 via UI (all cleaned up). Temporarily set 1 athlete's email/contacto (restored to null at the end). Final DB state matches baseline.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 5 items from the review request are green. Testids that work: login-email-input, login-password-input, login-submit-btn, user-name/email/password/role, create-user-btn, delete-user-{id}, confirm-delete-user-{id}, download-team-goals-pdf, tab-objetivos, athlete-email, athlete-contacto, edit-athlete-btn, send-report-btn, send-report-email, send-report-message, send-report-submit. Do NOT click send-report-submit unless EMERGENT_EMAIL_KEY is set (otherwise returns 503).",
+  "rca of the issue": "P0 root cause: backend previously only exposed PATCH /api/users/{id} (toggle active). Frontend called DELETE which resulted in 404/405 → the trash-can icon appeared unresponsive. Fix: added DELETE /api/users/{user_id} endpoint (server.py:325-332) with a self-delete guard (400) and a not-found guard (404). Reproduction pre-fix: click trash icon on any user row → no change in table. Post-fix: row is removed immediately and toast confirms."
+}
