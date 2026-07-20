@@ -1,0 +1,125 @@
+{
+  "theme_and_identity": {
+    "archetype": "THE PERFORMANCE PRO / CLINICAL",
+    "core_concept": "Tactical Minimalism. A high-performance command center for a football club's medical department. Flat solid surfaces (no glass) to ensure data clarity.",
+    "primary_colors": "CD Trofense Green, White, Obsidian Black."
+  },
+  "colors": {
+    "light": {
+      "background": "#F4F4F5",
+      "surface": "#FFFFFF",
+      "primary": "#059669", 
+      "primary_hover": "#047857",
+      "text_primary": "#09090B",
+      "text_secondary": "#52525B",
+      "border": "#E4E4E7",
+      "status_otimo_bg": "#DCFCE7",
+      "status_otimo_text": "#15803D",
+      "status_atencao_bg": "#FEF9C3",
+      "status_atencao_text": "#A16207",
+      "status_alto_bg": "#FEE2E2",
+      "status_alto_text": "#B91C1C"
+    },
+    "dark": {
+      "background": "#09090B",
+      "surface": "#18181B",
+      "primary": "#10B981", 
+      "primary_hover": "#34D399",
+      "text_primary": "#FAFAFA",
+      "text_secondary": "#A1A1AA",
+      "border": "#27272A",
+      "status_otimo_bg": "#052E16",
+      "status_otimo_text": "#4ADE80",
+      "status_atencao_bg": "#422006",
+      "status_atencao_text": "#FDE047",
+      "status_alto_bg": "#450A0A",
+      "status_alto_text": "#F87171"
+    }
+  },
+  "typography": {
+    "headings": {
+      "fontFamily": "Barlow Condensed, sans-serif",
+      "weights": [600, 700],
+      "usage": "H1-H4, Player Names, KPI Numbers. Use tracking-tight or tracking-tighter for a compact, athletic look."
+    },
+    "body": {
+      "fontFamily": "Manrope, sans-serif",
+      "weights": [400, 500, 600],
+      "usage": "Tables, labels, standard text. Clinical legibility for medical data."
+    }
+  },
+  "grids": {
+    "dashboard": "Grid-cols-1 md:grid-cols-4 gap-4. High Density for data bento grids. Every pixel utilized.",
+    "forms": "Dense 2-column or 3-column grids for skinfolds (pregas cutâneas) and circumferences (perímetros)."
+  },
+  "layouts": {
+    "philosophy": "Generous Spacing (p-6, p-8) for macro-layout (sections, page wrappers). High Density (tight gap-4) inside data cards.",
+    "structure": "Fixed left sidebar (250px) + Main content area. F-Pattern layout where critical KPIs (Weight, Fat %, Muscle Mass) sit top-left.",
+    "surfaces": "Flat Solid (No Glassmorphism). Medical apps require sharp, non-refracting data containers. 1px solid borders."
+  },
+  "components": {
+    "sidebar": "Fixed left sidebar. High contrast (Dark surface even in light mode, or inverse). Use Phosphor Icons. Include Trofense Green accents on active states.",
+    "athlete_card": "Horizontal split. Left: Photo + basic info. Right: Bento grid of KPIs (IMC, Fat %, Muscle Mass) and status pills.",
+    "evaluation_form": "Dense grid for inputs. Results section sticks to the right or bottom and updates in real-time.",
+    "charts": "Recharts. Use semantic green/red lines. Neon green for lean mass, red for fat mass. Include tooltips with comparison between methods.",
+    "photo_timeline": "Lado-a-lado (side-by-side) slider or scrollable timeline of frontal/profile/back photos.",
+    "status_pills": "Pill-shaped (rounded-full) badges with semantic coloring: Ótimo (Green), Atenção (Yellow), Alto (Red)."
+  },
+  "visual_enhancers": {
+    "borders": "1px solid border (border-border). No soft shadows, use crisp 2px inner shadows or flat design to reinforce the 'Tactical Minimalism' vibe.",
+    "charts": "Recharts with Trofense green primary line. Dark mode uses bright neon green (#10B981) for visibility."
+  },
+  "motion": {
+    "interactions": "Micro-interactions on hover (bg shifts, slight border darkening).",
+    "loading": "Skeleton loaders for fetching athlete data to prevent layout shift."
+  },
+  "accessibility": {
+    "contrast": "Ensure minimum 4.5:1 contrast for all medical data text. Text over colored pills must meet 3:1.",
+    "testing": "All interactive elements MUST use data-testid. E.g., data-testid='eval-form-submit', data-testid='athlete-row-1'."
+  },
+  "media": {
+    "images": "Use B/W and high-contrast fitness portraits to elevate the athletic aesthetic."
+  },
+  "3d_libraries": {
+    "usage": "Not recommended for this clinical dashboard. Focus on 2D Recharts for precise data visualization."
+  },
+  "image_urls": {
+    "athlete_portrait": {
+      "url": "https://images.pexels.com/photos/23940843/pexels-photo-23940843.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "B/W athlete portrait for profile header.",
+      "category": "Profile Header"
+    },
+    "progress_photo": {
+      "url": "https://images.pexels.com/photos/34791496/pexels-photo-34791496.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Side profile for progress timeline.",
+      "category": "Timeline Photos"
+    },
+    "medical_clinic": {
+      "url": "https://images.pexels.com/photos/13538710/pexels-photo-13538710.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Physio/Medical background for login screen or auth pages.",
+      "category": "Login Background"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Build the dashboard layout with a fixed sidebar and a top header containing a Dark Mode toggle.",
+    "For typography, import 'Barlow Condensed' and 'Manrope' from Google Fonts.",
+    "Use Shadcn UI components for Tabs, Forms, Select, and Dialogs. Ensure they are styled flat (no heavy drop shadows) to match the clinical/athletic vibe.",
+    "Implement the Anthropometric Evaluation Form using React Hook Form, calculating Body Fat % (Reilly & Wallace, Evans 2005, Jackson-Pollock, Withers) and Muscle Mass (Lee 2000) dynamically.",
+    "For charts, use Recharts (`ResponsiveContainer`, `LineChart`, `AreaChart`). Style the lines with the provided primary colors.",
+    "In the charts for daily weigh-ins (Pesagens diárias), include a calculated Moving Average (média móvel) line.",
+    "Include export functionality buttons: 'Exportar Excel', 'Backup JSON', and 'Gerar HTML' in the athlete report header.",
+    "Incorporate the provided status pills (Ótimo, Atenção, Alto) based on Body Fat % logic.",
+    "Ensure the layout is responsive, especially for tablet (iPad) usage in the gym (large touch targets, readable fonts).",
+    "Add data-testid attributes to ALL interactive elements and KPIs.",
+    "Ensure all text is in Portuguese (PT-PT)."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "Do not use generic centered layouts or simplistic gradients. Create depth through layered flat design (borders).",
+    "Medical/sports apps must be highly functional. Avoid glassmorphism to prevent data refraction. Use solid backgrounds.",
+    "Never apply 'transition: all'. Apply specific transitions (e.g., 'transition-colors').",
+    "Never use AI emoji placeholders. Use Phosphor Icons or Lucide.",
+    "Ensure hover states and focus rings are distinct and accessible.",
+    "Use sonner for toast notifications (e.g., 'Avaliação guardada com sucesso').",
+    "Provide empty states with skeleton loaders while fetching."
+  ]
+}
