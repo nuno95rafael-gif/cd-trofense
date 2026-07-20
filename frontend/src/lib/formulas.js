@@ -12,7 +12,9 @@ const num = (p, ...keys) => {
 };
 
 export function sumPregas8(p) {
-  const v = num(p, "peito", "tricipital", "subescapular", "axilar", "suprailiaca", "abdominal", "coxa", "gemeo");
+  // Idêntico ao original: tricipital + bicipital + axilar + suprailiaca +
+  // subescapular + abdominal + coxa + gemeo (sem peito).
+  const v = num(p, "tricipital", "bicipital", "axilar", "suprailiaca", "subescapular", "abdominal", "coxa", "gemeo");
   return v ? +v.reduce((a, b) => a + b, 0).toFixed(2) : null;
 }
 export function sumPregas7(p) {
@@ -27,10 +29,10 @@ export function bmi(w, hCm) {
 }
 
 export function bfReillyWallace(p) {
-  const v = num(p, "coxa", "abdominal", "gemeo");
+  const v = num(p, "coxa", "abdominal", "tricipital", "gemeo");
   if (!v) return null;
-  const [coxa, abdom, gemeo] = v;
-  return +(5.174 + 0.124 * coxa + 0.147 * abdom + 0.13 * gemeo).toFixed(2);
+  const [coxa, abdom, tri, gemeo] = v;
+  return +(5.174 + 0.124 * coxa + 0.147 * abdom + 0.196 * tri + 0.13 * gemeo).toFixed(2);
 }
 
 export function bfEvans7(p, sexNum, ethNum) {
@@ -136,16 +138,18 @@ export function computeAll(evaluation, athlete) {
   const imc = bmi(w, alturaCm);
   const s8 = sumPregas8(p);
   const s7 = sumPregas7(p);
-  const mg_kg = w && rw != null ? +((w * rw) / 100).toFixed(2) : null;
+  const mg_kg = w && evans7 != null ? +((w * evans7) / 100).toFixed(2) : null;
   const lean = w && mg_kg != null ? +(w - mg_kg).toFixed(2) : null;
   const mm_mg = mm && mg_kg ? +(mm / mg_kg).toFixed(2) : null;
   const perc_mm = mm && w ? +((mm / w) * 100).toFixed(2) : null;
+  const cintura = per?.cintura, anca = per?.anca;
+  const ratio_ca = cintura && anca ? +(cintura / anca).toFixed(2) : null;
 
   return {
     rw, evans7, evans3, jp7, withers,
     bf_average, muscle_mass_kg: mm, perc_mm,
     fat_mass_kg: mg_kg, lean_mass_kg: lean,
-    mm_mg_ratio: mm_mg, imc,
+    mm_mg_ratio: mm_mg, imc, ratio_ca,
     soma7: s7, soma8: s8,
     // legacy aliases
     bf_reilly_wallace: rw, bf_evans: evans3, bf_jackson_pollock: jp7, bf_withers: withers,

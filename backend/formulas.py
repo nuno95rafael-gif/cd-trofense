@@ -19,10 +19,10 @@ def _get(p, *keys):
 
 
 def sum_pregas_8(p):
-    """Σ 8 pregas: peito, tricipital, subescapular, axilar, suprailiaca,
-    abdominal, coxa, gemeo (matches soma8 do original)."""
-    v = _get(p, "peito", "tricipital", "subescapular", "axilar",
-             "suprailiaca", "abdominal", "coxa", "gemeo")
+    """Σ 8 pregas (idêntico ao original): tricipital + bicipital + axilar +
+    suprailiaca + subescapular + abdominal + coxa + gemeo (sem peito)."""
+    v = _get(p, "tricipital", "bicipital", "axilar", "suprailiaca",
+             "subescapular", "abdominal", "coxa", "gemeo")
     return round(sum(v), 2) if v else None
 
 
@@ -41,14 +41,14 @@ def bmi(weight_kg, height_cm):
     return round(weight_kg / (h * h), 2)
 
 
-# --------- Reilly & Wallace (3 dobras, para futebolistas) ---------
+# --------- Reilly & Wallace (4 dobras, para futebolistas) ---------
 def bf_reilly_wallace(p):
-    """rw = 5.174 + 0.124*coxa + 0.147*abdominal + 0.13*gemeo   (%)"""
-    v = _get(p, "coxa", "abdominal", "gemeo")
+    """rw = 5.174 + 0.124·coxa + 0.147·abdominal + 0.196·tricipital + 0.13·gémeo (%)"""
+    v = _get(p, "coxa", "abdominal", "tricipital", "gemeo")
     if not v:
         return None
-    coxa, abdom, gemeo = v
-    return round(5.174 + 0.124 * coxa + 0.147 * abdom + 0.13 * gemeo, 2)
+    coxa, abdom, tri, gemeo = v
+    return round(5.174 + 0.124 * coxa + 0.147 * abdom + 0.196 * tri + 0.13 * gemeo, 2)
 
 
 # --------- Evans 7 dobras ---------
@@ -227,10 +227,15 @@ def compute_all(evaluation, athlete):
     s7 = sum_pregas_7(p)
     s8 = sum_pregas_8(p)
 
-    mg_kg = round(weight * rw / 100.0, 2) if (weight and rw is not None) else None
+    # Original usa Evans 7 para a massa gorda em kg (não R&W)
+    mg_kg = round(weight * ev7 / 100.0, 2) if (weight and ev7 is not None) else None
     massa_magra = round(weight - mg_kg, 2) if (weight and mg_kg is not None) else None
     mm_mg = round(mm / mg_kg, 2) if (mm and mg_kg and mg_kg > 0) else None
     perc_mm = round(mm / weight * 100, 2) if (mm and weight) else None
+    # Rácio cintura/anca
+    cintura = (per or {}).get("cintura")
+    anca = (per or {}).get("anca")
+    ratio_ca = round(cintura / anca, 2) if (cintura and anca) else None
 
     return {
         "rw": rw,
@@ -245,6 +250,7 @@ def compute_all(evaluation, athlete):
         "lean_mass_kg": massa_magra,
         "mm_mg_ratio": mm_mg,
         "imc": imc,
+        "ratio_ca": ratio_ca,
         "soma7": s7,
         "soma8": s8,
         "status_rw": rw_band(rw),
