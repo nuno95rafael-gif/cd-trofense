@@ -45,19 +45,21 @@ Plataforma web (React + FastAPI + MongoDB) para o departamento médico do CD Tro
 - [x] Fórmulas exatas alinhadas 1:1 com `trofense_composicao_corporal.jsx` (validado numericamente)
 - [x] Remoção do "Σ 7 pregas" (mantido apenas Σ 8)
 - [x] Nova Avaliação em Dialog modal (a partir do perfil do atleta)
-- [x] Fotos por Avaliação — 3 slots fixos (Frente/Perfil/Costas) com crop/rotação/zoom via `react-easy-crop` (`PhotoCropDialog.jsx`)
+- [x] Fotos por Avaliação — 3 slots fixos (Frente/Perfil/Costas) com crop livre de 8 pegas + linhas guia via `react-image-crop` (`PhotoCropDialog.jsx`)
+- [x] Slots renderizam em `object-contain` com o fundo da página a preencher o espaço restante
 - [x] Upload de fotos ligado a `evaluation_id` (backend suporta na `POST /api/athletes/{aid}/photos`)
 - [x] Aba `Fotos` com selector de avaliação + slots recortáveis/substituíveis
 - [x] Histórico de avaliações vertical com pregas/perímetros um abaixo do outro (`EvaluationHistoryRow`)
-- [x] Fix: crash de compilação em `EvaluationForm.jsx` (fragmento JSX duplicado removido)
-- [x] Testes E2E: 100% pass (login → dashboard → perfil → nova avaliação → guardar → histórico → todas as abas)
+- [x] Fix: crash de compilação em `EvaluationForm.jsx`
+- [x] **Objetivos de Equipa** — nova página `/objetivos-equipa` (aba na sidebar) com vista consolidada dos ajustes de peso individuais: 6 cards de sumário (Prioritário/Em progresso/Quase lá/Atingido/Sem objetivo/Todos), filtros por estado e nome, tabela ordenada por prioridade com Δ peso + progresso, click numa linha vai ao perfil
+- [x] **Estados granulares de peso-alvo** (`lib/goalStatus.js`): Atingido (|Δ|≤0.5kg) / Quase lá (≤2kg) / Em progresso (≤5kg) / Prioritário (>5kg). Pill reutilizada no `GoalsPanel` individual + `TeamGoals`
+- [x] Testes E2E: 100% pass em duas iterações (fotos + objetivos de equipa)
 
 ## Backlog priorizado (atualizado)
 - **P1** Export Excel nativo (com múltiplas folhas: resumo + histórico) usando `xlsx`
 - **P1** UI de Restore de backup JSON (endpoint + página)
 - **P1** Alinhar visual com mockup do utilizador: avatar redondo com iniciais (gradient), Comparativo em tabela, histórico em tabela com colunas e badges coloridos, CTA "Registar avaliação" em accent dourado
 - **P2** Foto de perfil separada das fotos de avaliação
-- **P2** Estados de peso-alvo granulares (Prioritário / Em progresso / Quase lá / Atingido)
 - **P2** Slider de comparação de fotos com scrubber (before/after)
 - **P2** Auditoria: exibir criado_por + data em avaliações
 - **P2** A11y: DialogDescription em modais Radix

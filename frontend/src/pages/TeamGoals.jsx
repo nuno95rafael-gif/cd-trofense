@@ -21,8 +21,11 @@ export default function TeamGoals() {
 
   const rows = useMemo(() => {
     return athletes.map((a) => {
+      // Coerência com GoalsPanel: usar o peso da última avaliação (mesma origem
+      // que o % MG). Se não houver avaliação, cair para display_weight.
+      const currentWeight = a.last_eval_weight ?? a.display_weight;
       const info = computeGoalStatus({
-        currentWeight: a.display_weight,
+        currentWeight,
         currentBf: a.last_metrics?.rw,
         goal: a.goal,
       });
@@ -30,7 +33,7 @@ export default function TeamGoals() {
         id: a.id,
         nome: a.nome,
         posicao: a.posicao,
-        currentWeight: a.display_weight,
+        currentWeight,
         currentBf: a.last_metrics?.rw,
         targetBf: a.goal?.bf_target_pct,
         ...info,
@@ -45,7 +48,14 @@ export default function TeamGoals() {
       r = r.filter((x) => x.nome.toLowerCase().includes(s) || (x.posicao || "").toLowerCase().includes(s));
     }
     if (statusFilter !== "todos") r = r.filter((x) => x.status === statusFilter);
-    return [...r].sort((a, b) => (STATUS_PRIORITY[b.status] ?? -2) - (STATUS_PRIORITY[a.status] ?? -2));
+    // Ordenação estável: por prioridade desc, depois por |Δ| desc, depois por nome asc.
+    return [...r].sort((a, b) => {
+      const p = (STATUS_PRIORITY[b.status] ?? -2) - (STATUS_PRIORITY[a.status] ?? -2);
+      if (p !== 0) return p;
+      const d = (b.absDelta ?? -1) - (a.absDelta ?? -1);
+      if (d !== 0) return d;
+      return a.nome.localeCompare(b.nome, "pt");
+    });
   }, [rows, q, statusFilter]);
 
   const counts = useMemo(() => {
