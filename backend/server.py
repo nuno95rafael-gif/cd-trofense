@@ -485,7 +485,7 @@ async def upload_photo(
     evaluation_id: Optional[str] = Form(None),
     user: dict = Depends(require_editor),
 ):
-    if kind not in ("frontal", "perfil", "costas"):
+    if kind not in ("frontal", "perfil", "costas", "profile"):
         raise HTTPException(status_code=400, detail="Tipo de foto inválido")
     data = await file.read()
     ext = (file.filename or "").split(".")[-1].lower() or "jpg"
@@ -517,7 +517,7 @@ async def upload_photo(
 async def update_photo(pid: str, body: dict, _: dict = Depends(require_editor)):
     upd = {}
     if "kind" in body:
-        if body["kind"] not in ("frontal", "perfil", "costas"):
+        if body["kind"] not in ("frontal", "perfil", "costas", "profile"):
             raise HTTPException(status_code=400, detail="Tipo de foto inválido")
         upd["kind"] = body["kind"]
     if "evaluation_id" in body:

@@ -240,7 +240,7 @@ export default function TeamGoals() {
                     <td className="px-4 py-3 text-right num font-semibold">{r.currentWeight != null ? `${r.currentWeight} kg` : "—"}</td>
                     <td className="px-4 py-3 text-right num">{r.currentBf != null ? `${r.currentBf}%` : "—"}</td>
                     <td className="px-4 py-3 text-right num">{r.targetBf != null ? `${r.targetBf}%` : "—"}</td>
-                    <td className="px-4 py-3 text-right num font-semibold text-primary">{r.targetWeight != null ? `${r.targetWeight} kg` : "—"}</td>
+                    <td className="px-4 py-3 text-right num font-semibold">{r.targetWeight != null ? `${r.targetWeight} kg` : "—"}</td>
                     <td className="px-4 py-3 text-right">
                       {r.delta == null ? (
                         <span className="text-muted-foreground">—</span>
