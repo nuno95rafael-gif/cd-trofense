@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, TrendingUp, Users, Weight, Activity } from "lucide-react";
+import { Plus, Search, TrendingUp, Users, Weight, Activity, FileDown } from "lucide-react";
+import { exportDashboardPdf } from "@/lib/pdf";
 
 const COLS = [
   { key: "nome", label: "Nome" },
@@ -113,8 +114,30 @@ export default function Dashboard() {
           <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tighter mt-1">Plantel</h1>
         </div>
         {isEditor && (
-          <Button data-testid="new-athlete-btn" onClick={() => navigate("/atletas/novo")} className="gap-2">
-            <Plus className="w-4 h-4" /> Novo atleta
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              data-testid="download-dashboard-pdf"
+              onClick={() => exportDashboardPdf(filtered || athletes || [], stats)}
+              disabled={!athletes || athletes.length === 0}
+              className="gap-2"
+            >
+              <FileDown className="w-4 h-4" /> Descarregar PDF
+            </Button>
+            <Button data-testid="new-athlete-btn" onClick={() => navigate("/atletas/novo")} className="gap-2">
+              <Plus className="w-4 h-4" /> Novo atleta
+            </Button>
+          </div>
+        )}
+        {!isEditor && (
+          <Button
+            variant="outline"
+            data-testid="download-dashboard-pdf"
+            onClick={() => exportDashboardPdf(filtered || athletes || [], stats)}
+            disabled={!athletes || athletes.length === 0}
+            className="gap-2"
+          >
+            <FileDown className="w-4 h-4" /> Descarregar PDF
           </Button>
         )}
       </div>

@@ -51,8 +51,9 @@ Plataforma web (React + FastAPI + MongoDB) para o departamento médico do CD Tro
 - [x] Aba `Fotos` com selector de avaliação + slots recortáveis/substituíveis
 - [x] Histórico de avaliações vertical com pregas/perímetros um abaixo do outro (`EvaluationHistoryRow`)
 - [x] Fix: crash de compilação em `EvaluationForm.jsx`
-- [x] **Objetivos de Equipa** — nova página `/objetivos-equipa` (aba na sidebar) com vista consolidada dos ajustes de peso individuais: 6 cards de sumário (Prioritário/Em progresso/Quase lá/Atingido/Sem objetivo/Todos), filtros por estado e nome, tabela ordenada por prioridade com Δ peso + progresso, click numa linha vai ao perfil
+- [x] **Objetivos de Equipa** — nova página `/objetivos-equipa` (aba na sidebar) com vista consolidada dos ajustes de peso individuais: 6 cards de sumário (Prioritário/Em progresso/Quase lá/Atingido/Sem objetivo/Todos), **filtros multi-dimensão** (pesquisa por nome, posição, estado, direção do ajuste), **colunas ordenáveis** (nome, posição, estado, peso, %MG, alvo, Δ), tabela ordenada por prioridade com Δ peso + progresso, click numa linha vai ao perfil
 - [x] **Estados granulares de peso-alvo** (`lib/goalStatus.js`): Atingido (|Δ|≤0.5kg) / Quase lá (≤2kg) / Em progresso (≤5kg) / Prioritário (>5kg). Pill reutilizada no `GoalsPanel` individual + `TeamGoals`
+- [x] **Export PDF client-side** (`lib/pdf.js` com `jspdf` + `jspdf-autotable`) — botão "Descarregar PDF" no Dashboard (KPIs + plantel com badges coloridos por banda) e nos Objetivos de Equipa (sumário + tabela priorizada com colorização por estado). Suporte completo a caracteres PT-PT, cabeçalho com faixa verde do clube e rodapé com paginação
 - [x] Testes E2E: 100% pass em duas iterações (fotos + objetivos de equipa)
 
 ## Backlog priorizado (atualizado)
@@ -63,7 +64,7 @@ Plataforma web (React + FastAPI + MongoDB) para o departamento médico do CD Tro
 - **P2** Slider de comparação de fotos com scrubber (before/after)
 - **P2** Auditoria: exibir criado_por + data em avaliações
 - **P2** A11y: DialogDescription em modais Radix
+- **P2** PDF individual por atleta (foto frente/perfil/costas + KPIs + evolução histórica)
 - **P3** Notificações quando atleta atinge objetivo ou sai de faixa
 - **P3** Integração com balanças de bioimpedância
-- **P3** Export PDF nativo dos relatórios individuais
 - **P3** App mobile companion

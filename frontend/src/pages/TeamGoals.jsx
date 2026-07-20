@@ -3,17 +3,22 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
 import { GoalStatusPill } from "@/components/GoalStatusPill";
 import { computeGoalStatus, STATUS_PRIORITY, STATUS_STYLES } from "@/lib/goalStatus";
-import { ArrowDown, ArrowUp, Minus, Target, Users } from "lucide-react";
+import { exportTeamGoalsPdf } from "@/lib/pdf";
+import { ArrowDown, ArrowUp, Minus, Target, Users, FileDown, Search } from "lucide-react";
 
 export default function TeamGoals() {
   const nav = useNavigate();
   const [athletes, setAthletes] = useState([]);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [posFilter, setPosFilter] = useState("_all");
+  const [dirFilter, setDirFilter] = useState("_all");
+  const [sortKey, setSortKey] = useState("priority");
+  const [sortDir, setSortDir] = useState("desc");
 
   useEffect(() => {
     api.get("/athletes").then(({ data }) => setAthletes(data));
@@ -21,8 +26,6 @@ export default function TeamGoals() {
 
   const rows = useMemo(() => {
     return athletes.map((a) => {
-      // Coerência com GoalsPanel: usar o peso da última avaliação (mesma origem
-      // que o % MG). Se não houver avaliação, cair para display_weight.
       const currentWeight = a.last_eval_weight ?? a.display_weight;
       const info = computeGoalStatus({
         currentWeight,
@@ -33,6 +36,7 @@ export default function TeamGoals() {
         id: a.id,
         nome: a.nome,
         posicao: a.posicao,
+        idade: a.idade,
         currentWeight,
         currentBf: a.last_metrics?.rw,
         targetBf: a.goal?.bf_target_pct,
@@ -41,6 +45,11 @@ export default function TeamGoals() {
     });
   }, [athletes]);
 
+  const positions = useMemo(() => {
+    const s = new Set(rows.map((r) => r.posicao).filter(Boolean));
+    return Array.from(s).sort();
+  }, [rows]);
+
   const filtered = useMemo(() => {
     let r = rows;
     if (q.trim()) {
@@ -48,15 +57,31 @@ export default function TeamGoals() {
       r = r.filter((x) => x.nome.toLowerCase().includes(s) || (x.posicao || "").toLowerCase().includes(s));
     }
     if (statusFilter !== "todos") r = r.filter((x) => x.status === statusFilter);
-    // Ordenação estável: por prioridade desc, depois por |Δ| desc, depois por nome asc.
+    if (posFilter !== "_all") r = r.filter((x) => (x.posicao || "") === posFilter);
+    if (dirFilter !== "_all") r = r.filter((x) => x.direction === dirFilter);
+    const getVal = (x) => {
+      switch (sortKey) {
+        case "priority": return STATUS_PRIORITY[x.status] ?? -2;
+        case "nome": return x.nome.toLowerCase();
+        case "posicao": return (x.posicao || "").toLowerCase();
+        case "currentWeight": return x.currentWeight ?? -1;
+        case "currentBf": return x.currentBf ?? -1;
+        case "targetBf": return x.targetBf ?? -1;
+        case "targetWeight": return x.targetWeight ?? -1;
+        case "delta": return x.absDelta ?? -1;
+        default: return 0;
+      }
+    };
     return [...r].sort((a, b) => {
-      const p = (STATUS_PRIORITY[b.status] ?? -2) - (STATUS_PRIORITY[a.status] ?? -2);
-      if (p !== 0) return p;
+      const va = getVal(a), vb = getVal(b);
+      if (va < vb) return sortDir === "asc" ? -1 : 1;
+      if (va > vb) return sortDir === "asc" ? 1 : -1;
+      // tiebreaker: por |Δ| desc depois nome asc
       const d = (b.absDelta ?? -1) - (a.absDelta ?? -1);
       if (d !== 0) return d;
       return a.nome.localeCompare(b.nome, "pt");
     });
-  }, [rows, q, statusFilter]);
+  }, [rows, q, statusFilter, posFilter, dirFilter, sortKey, sortDir]);
 
   const counts = useMemo(() => {
     const c = { prioritario: 0, em_progresso: 0, quase_la: 0, atingido: 0, sem_objetivo: 0, sem_dados: 0 };
@@ -64,14 +89,39 @@ export default function TeamGoals() {
     return c;
   }, [rows]);
 
+  const toggleSort = (k) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir(k === "priority" ? "desc" : "asc"); }
+  };
+
+  const arrow = (k) => sortKey === k ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+
+  const resetFilters = () => {
+    setQ(""); setStatusFilter("todos"); setPosFilter("_all"); setDirFilter("_all");
+    setSortKey("priority"); setSortDir("desc");
+  };
+
+  const anyFilterActive = q || statusFilter !== "todos" || posFilter !== "_all" || dirFilter !== "_all";
+
   return (
     <div className="p-8 max-w-[1400px] mx-auto" data-testid="team-goals-page">
-      <div className="mb-6">
-        <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">Departamento Médico</div>
-        <h1 className="font-display text-5xl font-bold tracking-tighter mt-1">Objetivos de Equipa</h1>
-        <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
-          Vista consolidada dos ajustes de peso individuais. Cada atleta é classificado em função da diferença entre o peso atual e o peso alvo calculado a partir da sua % MG alvo.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-muted-foreground font-semibold">Departamento Médico</div>
+          <h1 className="font-display text-4xl md:text-5xl font-bold tracking-tighter mt-1">Objetivos de Equipa</h1>
+          <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
+            Vista consolidada dos ajustes de peso individuais. Cada atleta é classificado em função da diferença entre o peso atual e o peso alvo calculado a partir da sua % MG alvo.
+          </p>
+        </div>
+        <Button
+          variant="default"
+          className="gap-2"
+          data-testid="download-team-goals-pdf"
+          onClick={() => exportTeamGoalsPdf(filtered, counts)}
+          disabled={filtered.length === 0}
+        >
+          <FileDown className="w-4 h-4" /> Descarregar PDF
+        </Button>
       </div>
 
       {/* Sumário por estado */}
@@ -95,17 +145,29 @@ export default function TeamGoals() {
 
       {/* Filtros */}
       <Card className="p-4 mb-4">
-        <div className="flex flex-wrap gap-3">
-          <Input
-            placeholder="Pesquisar nome ou posição..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="max-w-xs"
-            data-testid="team-goals-search"
-          />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Pesquisar nome ou posição…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="pl-9"
+              data-testid="team-goals-search"
+            />
+          </div>
+          <Select value={posFilter} onValueChange={setPosFilter}>
+            <SelectTrigger className="w-44" data-testid="team-goals-position-filter">
+              <SelectValue placeholder="Posição" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">Todas as posições</SelectItem>
+              {positions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-56" data-testid="team-goals-status-filter">
-              <SelectValue />
+            <SelectTrigger className="w-44" data-testid="team-goals-status-filter">
+              <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos os estados</SelectItem>
@@ -117,6 +179,25 @@ export default function TeamGoals() {
               <SelectItem value="sem_dados">Sem avaliação</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={dirFilter} onValueChange={setDirFilter}>
+            <SelectTrigger className="w-44" data-testid="team-goals-direction-filter">
+              <SelectValue placeholder="Direção" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="_all">Qualquer direção</SelectItem>
+              <SelectItem value="perder">A perder peso</SelectItem>
+              <SelectItem value="ganhar">A ganhar peso</SelectItem>
+              <SelectItem value="manter">No alvo</SelectItem>
+            </SelectContent>
+          </Select>
+          {anyFilterActive && (
+            <Button variant="ghost" size="sm" onClick={resetFilters} data-testid="team-goals-reset-filters">
+              Limpar filtros
+            </Button>
+          )}
+          <div className="text-xs text-muted-foreground ml-auto">
+            {filtered.length} de {rows.length}
+          </div>
         </div>
       </Card>
 
@@ -126,19 +207,20 @@ export default function TeamGoals() {
           <table className="w-full text-sm">
             <thead className="bg-secondary/40 text-xs uppercase tracking-widest text-muted-foreground font-semibold">
               <tr>
-                <th className="text-left px-4 py-3">Atleta</th>
-                <th className="text-left px-4 py-3">Estado</th>
-                <th className="text-right px-4 py-3">Peso atual</th>
-                <th className="text-right px-4 py-3">% MG atual</th>
-                <th className="text-right px-4 py-3">% MG alvo</th>
-                <th className="text-right px-4 py-3">Peso alvo</th>
-                <th className="text-right px-4 py-3">Δ peso</th>
+                <Th onClick={() => toggleSort("nome")} testid="sort-nome">Atleta{arrow("nome")}</Th>
+                <Th onClick={() => toggleSort("posicao")} testid="sort-posicao">Posição{arrow("posicao")}</Th>
+                <Th onClick={() => toggleSort("priority")} testid="sort-priority">Estado{arrow("priority")}</Th>
+                <Th right onClick={() => toggleSort("currentWeight")} testid="sort-currentWeight">Peso atual{arrow("currentWeight")}</Th>
+                <Th right onClick={() => toggleSort("currentBf")} testid="sort-currentBf">% MG atual{arrow("currentBf")}</Th>
+                <Th right onClick={() => toggleSort("targetBf")} testid="sort-targetBf">% MG alvo{arrow("targetBf")}</Th>
+                <Th right onClick={() => toggleSort("targetWeight")} testid="sort-targetWeight">Peso alvo{arrow("targetWeight")}</Th>
+                <Th right onClick={() => toggleSort("delta")} testid="sort-delta">Δ peso{arrow("delta")}</Th>
                 <th className="text-left px-4 py-3 min-w-[160px]">Progresso</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="text-center py-10 text-muted-foreground">Nenhum atleta corresponde aos filtros.</td></tr>
+                <tr><td colSpan={9} className="text-center py-10 text-muted-foreground">Nenhum atleta corresponde aos filtros.</td></tr>
               )}
               {filtered.map((r) => {
                 const style = STATUS_STYLES[r.status] || STATUS_STYLES.sem_dados;
@@ -152,8 +234,8 @@ export default function TeamGoals() {
                   >
                     <td className="px-4 py-3">
                       <div className="font-semibold">{r.nome}</div>
-                      {r.posicao && <div className="text-xs text-muted-foreground">{r.posicao}</div>}
                     </td>
+                    <td className="px-4 py-3 text-muted-foreground">{r.posicao || "—"}</td>
                     <td className="px-4 py-3"><GoalStatusPill status={r.status} label={r.label} /></td>
                     <td className="px-4 py-3 text-right num font-semibold">{r.currentWeight != null ? `${r.currentWeight} kg` : "—"}</td>
                     <td className="px-4 py-3 text-right num">{r.currentBf != null ? `${r.currentBf}%` : "—"}</td>
@@ -197,6 +279,18 @@ export default function TeamGoals() {
         </span>
       </div>
     </div>
+  );
+}
+
+function Th({ children, right, onClick, testid }) {
+  return (
+    <th
+      className={`px-4 py-3 cursor-pointer select-none hover:text-foreground ${right ? "text-right" : "text-left"}`}
+      onClick={onClick}
+      data-testid={testid}
+    >
+      {children}
+    </th>
   );
 }
 
