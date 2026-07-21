@@ -18,6 +18,7 @@ export default function WeighinsHistory() {
   const [weighins, setWeighins] = useState([]);
   const [days, setDays] = useState("30");
   const [q, setQ] = useState("");
+  const [deltaFilter, setDeltaFilter] = useState("todos"); // todos | ganhou | perdeu | estavel
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
 
@@ -41,11 +42,46 @@ export default function WeighinsHistory() {
   }, [weighins]);
 
   const rows = useMemo(() => {
-    const filtered = q.trim()
-      ? athletes.filter((a) => a.nome.toLowerCase().includes(q.toLowerCase()) || (a.posicao || "").toLowerCase().includes(q.toLowerCase()))
-      : athletes;
-    return [...filtered].sort((a, b) => a.nome.localeCompare(b.nome, "pt"));
-  }, [athletes, q]);
+    // enriquecer cada atleta com o delta do período (primeira pesagem → última pesagem do período)
+    const enriched = athletes.map((a) => {
+      const values = byAthlete[a.id] || {};
+      const nonEmpty = dates.map((d) => values[d]).filter((v) => v != null);
+      const first = nonEmpty[nonEmpty.length - 1]; // dates estão em desc → última posição é a mais antiga
+      const last = nonEmpty[0];
+      const delta = last != null && first != null ? +(last - first).toFixed(1) : null;
+      return { ...a, delta, values, hasData: nonEmpty.length > 0 };
+    });
+
+    let r = enriched;
+    if (q.trim()) {
+      const s = q.toLowerCase();
+      r = r.filter((a) => a.nome.toLowerCase().includes(s) || (a.posicao || "").toLowerCase().includes(s));
+    }
+    if (deltaFilter !== "todos") {
+      r = r.filter((a) => {
+        if (a.delta == null) return false;
+        if (deltaFilter === "ganhou") return a.delta > 0.1;
+        if (deltaFilter === "perdeu") return a.delta < -0.1;
+        if (deltaFilter === "estavel") return Math.abs(a.delta) <= 0.1;
+        return true;
+      });
+    }
+    return [...r].sort((a, b) => a.nome.localeCompare(b.nome, "pt"));
+  }, [athletes, byAthlete, dates, q, deltaFilter]);
+
+  const deltaCounts = useMemo(() => {
+    const c = { ganhou: 0, perdeu: 0, estavel: 0 };
+    for (const a of athletes) {
+      const values = byAthlete[a.id] || {};
+      const nonEmpty = dates.map((d) => values[d]).filter((v) => v != null);
+      if (nonEmpty.length < 2) continue;
+      const delta = +(nonEmpty[0] - nonEmpty[nonEmpty.length - 1]).toFixed(1);
+      if (delta > 0.1) c.ganhou++;
+      else if (delta < -0.1) c.perdeu++;
+      else c.estavel++;
+    }
+    return c;
+  }, [athletes, byAthlete, dates]);
 
   const totalWeighins = weighins.length;
 
@@ -158,6 +194,7 @@ export default function WeighinsHistory() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
               <SelectItem value="14">Últimos 14 dias</SelectItem>
               <SelectItem value="30">Últimos 30 dias</SelectItem>
               <SelectItem value="60">Últimos 60 dias</SelectItem>
@@ -165,6 +202,28 @@ export default function WeighinsHistory() {
               <SelectItem value="365">Últimos 12 meses</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={deltaFilter} onValueChange={setDeltaFilter}>
+            <SelectTrigger className="w-52" data-testid="weighins-delta-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os atletas</SelectItem>
+              <SelectItem value="ganhou">
+                Ganharam peso ({deltaCounts.ganhou})
+              </SelectItem>
+              <SelectItem value="perdeu">
+                Perderam peso ({deltaCounts.perdeu})
+              </SelectItem>
+              <SelectItem value="estavel">
+                Peso estável ({deltaCounts.estavel})
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          {(q || deltaFilter !== "todos") && (
+            <Button variant="ghost" size="sm" onClick={() => { setQ(""); setDeltaFilter("todos"); }} data-testid="weighins-reset-filters">
+              Limpar filtros
+            </Button>
+          )}
           <div className="text-xs text-muted-foreground ml-auto">
             {rows.length} atletas · {dates.length} dias
           </div>
@@ -195,11 +254,8 @@ export default function WeighinsHistory() {
               </thead>
               <tbody>
                 {rows.map((a) => {
-                  const values = byAthlete[a.id] || {};
-                  const nonEmpty = dates.map((d) => values[d]).filter((v) => v != null);
-                  const first = nonEmpty[nonEmpty.length - 1];
-                  const last = nonEmpty[0];
-                  const delta = last != null && first != null ? +(last - first).toFixed(1) : null;
+                  const values = a.values || byAthlete[a.id] || {};
+                  const delta = a.delta;
                   return (
                     <tr key={a.id} className="border-t hover:bg-secondary/40 transition" data-testid={`weighin-row-${a.nome.replace(/\s+/g, "-")}`}>
                       <td className="px-4 py-2.5 sticky left-0 bg-card z-10">
