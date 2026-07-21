@@ -6,7 +6,7 @@ Plataforma web (React + FastAPI + MongoDB) para o departamento médico do CD Tro
 ## Arquitetura
 - **Backend**: FastAPI (Python) em `/app/backend/server.py` + `formulas.py` + `storage.py`. JWT (12h) via cookie httpOnly + Bearer fallback. bcrypt para passwords. Motor (async) para MongoDB.
 - **Frontend**: React 19 + React Router 7 + shadcn/ui + Tailwind + Recharts + Sonner. Contextos `Auth` e `Theme`. Fonts: Barlow Condensed (display/números) + Manrope (corpo).
-- **Storage**: Emergent Object Storage — fotos guardadas em `trofense/photos/{athlete_id}/{uuid}.{ext}`; metadados em MongoDB (`photos`).
+- **Storage**: Fotos guardadas em base64 diretamente no MongoDB (`photos.data_base64`) — sem dependência de object storage externo, permite deploy em qualquer provider (Render, Vercel, Railway, Fly.io, etc). Limite 10 MB por foto (BSON tem cap de 16 MB por documento).
 - **DB coleções**: `users`, `athletes`, `evaluations`, `weighins`, `photos`.
 
 ## Personas
@@ -83,6 +83,13 @@ Plataforma web (React + FastAPI + MongoDB) para o departamento médico do CD Tro
 - **P3** Envio de relatório PDF individual por email (Resend)
 os de Equipa passou a preto (removido `text-primary`)
 - [x] Testes E2E: 100% pass em duas iterações (fotos + objetivos de equipa) + smoke visual da identidade renovada + upload de foto de perfil + geração de PDF individual verificada por análise IA
+
+## Implementado — 2026-07-21
+- [x] **Refactor de armazenamento de fotos → base64 no MongoDB** (elimina dependência de Emergent Object Storage). Todos os uploads passam a gravar `photos.data_base64` + `content_type`. Endpoint `GET /api/photos/{pid}/download` decodifica base64 e devolve os bytes. `GET /api/athletes/{aid}/photos` exclui `data_base64` do payload (via `PHOTO_LIST_PROJECTION`) para não sobrecarregar respostas.
+- [x] **Migração automática legacy → base64** no arranque do backend (60/60 fotos existentes migradas com sucesso). Endpoint `POST /api/admin/migrate-photos` disponível para re-executar manualmente (idempotente).
+- [x] **Limite de 10 MB por foto** aplicado no upload (413 se excedido) — deixa margem confortável abaixo do BSON cap de 16 MB.
+- [x] **Preview de deploy externo desbloqueado**: código pronto para push para GitHub e deploy em Vercel (frontend) + Render (backend) + MongoDB Atlas (DB).
+- [x] Testes E2E: 17/17 pytest backend + validação frontend (avatar + painel de fotos + PDF individual com fotos embutidas)
 
 ## Backlog priorizado (atualizado)
 - **P1** Export Excel nativo (com múltiplas folhas: resumo + histórico) usando `xlsx`
