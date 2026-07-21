@@ -21,7 +21,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
 
 from formulas import compute_all
-from storage import put_object, get_object, init_storage, APP_NAME
+from storage import get_object, init_storage, content_type_for  # legacy storage kept only for one-time migration
 
 # ---------- Setup ----------
 mongo_url = os.environ["MONGO_URL"]
@@ -699,9 +699,20 @@ async def import_weighins(
 
 
 # ---------- Photos ----------
+# Fotos são armazenadas como base64 direto no MongoDB (campo `data_base64`).
+# Isto elimina a dependência de object storage externo e permite deploy em
+# qualquer provider (Render, Vercel, Railway, etc). O campo `data_base64` é
+# omitido das respostas de listagem para não sobrecarregar o payload.
+
+PHOTO_LIST_PROJECTION = {"_id": 0, "data_base64": 0}
+
+
 @api.get("/athletes/{aid}/photos")
 async def list_photos(aid: str, _: dict = Depends(get_current_user)):
-    docs = await db.photos.find({"athlete_id": aid, "is_deleted": {"$ne": True}}, {"_id": 0}).sort("date", 1).to_list(1000)
+    docs = await db.photos.find(
+        {"athlete_id": aid, "is_deleted": {"$ne": True}},
+        PHOTO_LIST_PROJECTION,
+    ).sort("date", 1).to_list(1000)
     return docs
 
 
@@ -710,35 +721,39 @@ async def upload_photo(
     aid: str,
     file: UploadFile = File(...),
     date: str = Form(...),
-    kind: str = Form(...),  # frontal | perfil | costas
+    kind: str = Form(...),  # frontal | perfil | costas | profile
     evaluation_id: Optional[str] = Form(None),
     user: dict = Depends(require_editor),
 ):
     if kind not in ("frontal", "perfil", "costas", "profile"):
         raise HTTPException(status_code=400, detail="Tipo de foto inválido")
     data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Ficheiro vazio")
+    # Limite de segurança: 10 MB por foto (MongoDB doc limit é 16 MB)
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Foto demasiado grande (máx 10 MB)")
     ext = (file.filename or "").split(".")[-1].lower() or "jpg"
     if ext not in ("jpg", "jpeg", "png", "webp"):
         ext = "jpg"
-    ctype = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext]
+    ctype = content_type_for(ext)
     photo_id = new_id()
-    path = f"{APP_NAME}/photos/{aid}/{photo_id}.{ext}"
-    result = put_object(path, data, ctype)
     doc = {
         "id": photo_id,
         "athlete_id": aid,
         "evaluation_id": evaluation_id,
         "date": date,
         "kind": kind,
-        "storage_path": result["path"],
         "content_type": ctype,
-        "size": result.get("size"),
+        "size": len(data),
+        "data_base64": base64.b64encode(data).decode("ascii"),
         "is_deleted": False,
         "created_at": now_iso(),
         "created_by": user["id"],
     }
     await db.photos.insert_one(doc)
     doc.pop("_id", None)
+    doc.pop("data_base64", None)  # não devolvemos o payload pesado
     return doc
 
 
@@ -767,29 +782,63 @@ async def replace_photo(pid: str, file: UploadFile = File(...), _: dict = Depend
     if not doc:
         raise HTTPException(status_code=404, detail="Foto não encontrada")
     data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Ficheiro vazio")
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Foto demasiado grande (máx 10 MB)")
     ext = (file.filename or "").split(".")[-1].lower() or "jpg"
     if ext not in ("jpg", "jpeg", "png", "webp"):
         ext = "jpg"
-    ctype = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext]
-    new_photo_id = new_id()
-    path = f"{APP_NAME}/photos/{doc['athlete_id']}/{new_photo_id}.{ext}"
-    result = put_object(path, data, ctype)
+    ctype = content_type_for(ext)
     await db.photos.update_one({"id": pid}, {"$set": {
-        "storage_path": result["path"],
         "content_type": ctype,
-        "size": result.get("size"),
+        "size": len(data),
+        "data_base64": base64.b64encode(data).decode("ascii"),
         "updated_at": now_iso(),
-    }})
+    }, "$unset": {"storage_path": ""}})
     return {"ok": True}
+
+
+async def _load_photo_bytes(doc: dict) -> tuple[bytes, str]:
+    """Devolve (bytes, content_type). Suporta fotos armazenadas em base64
+    (novo formato) e faz migração lazy das antigas em object storage."""
+    ctype = doc.get("content_type") or "image/jpeg"
+    b64 = doc.get("data_base64")
+    if b64:
+        try:
+            return base64.b64decode(b64), ctype
+        except Exception:
+            raise HTTPException(status_code=500, detail="Dados de imagem corrompidos")
+    # Fallback legado: object storage → migra para base64 no acesso
+    storage_path = doc.get("storage_path")
+    if not storage_path:
+        raise HTTPException(status_code=404, detail="Foto sem dados")
+    try:
+        data, legacy_ctype = get_object(storage_path)
+    except Exception as e:
+        logger.error("Legacy photo fetch failed for %s: %s", doc.get("id"), e)
+        raise HTTPException(status_code=502, detail="Não foi possível carregar a foto (storage indisponível)")
+    # Persistir na coleção para futuros acessos
+    await db.photos.update_one(
+        {"id": doc["id"]},
+        {"$set": {
+            "data_base64": base64.b64encode(data).decode("ascii"),
+            "content_type": ctype or legacy_ctype,
+            "size": len(data),
+            "migrated_at": now_iso(),
+        }},
+    )
+    return data, ctype or legacy_ctype
 
 
 @api.get("/photos/{pid}/download")
 async def download_photo(pid: str, request: Request, auth: Optional[str] = Query(None)):
-    # Support token via query param for <img src>
-    if auth and "access_token" not in request.cookies:
-        request.cookies.__dict__["_dict"] if False else None  # no-op
-    # Manual auth
+    # Manual auth (suporta cookie ou token via ?auth= para <img src>)
     token = request.cookies.get("access_token") or auth
+    if not token:
+        h = request.headers.get("Authorization", "")
+        if h.startswith("Bearer "):
+            token = h[7:]
     if not token:
         raise HTTPException(status_code=401, detail="Não autenticado")
     try:
@@ -799,8 +848,39 @@ async def download_photo(pid: str, request: Request, auth: Optional[str] = Query
     doc = await db.photos.find_one({"id": pid, "is_deleted": {"$ne": True}}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Foto não encontrada")
-    data, ctype = get_object(doc["storage_path"])
-    return FastAPIResponse(content=data, media_type=doc.get("content_type", ctype))
+    data, ctype = await _load_photo_bytes(doc)
+    return FastAPIResponse(content=data, media_type=ctype)
+
+
+@api.post("/admin/migrate-photos")
+async def migrate_photos(_: dict = Depends(require_editor)):
+    """Migra todas as fotos legacy (armazenadas em Emergent Object Storage)
+    para base64 no MongoDB. Executar uma vez antes de mudar de plataforma
+    de hosting. Idempotente: fotos já migradas são ignoradas."""
+    q = {
+        "is_deleted": {"$ne": True},
+        "storage_path": {"$exists": True},
+        "$or": [{"data_base64": {"$exists": False}}, {"data_base64": None}],
+    }
+    docs = await db.photos.find(q, {"_id": 0}).to_list(5000)
+    migrated = 0
+    failed: list[dict] = []
+    for d in docs:
+        try:
+            data, legacy_ctype = get_object(d["storage_path"])
+            await db.photos.update_one(
+                {"id": d["id"]},
+                {"$set": {
+                    "data_base64": base64.b64encode(data).decode("ascii"),
+                    "content_type": d.get("content_type") or legacy_ctype,
+                    "size": len(data),
+                    "migrated_at": now_iso(),
+                }},
+            )
+            migrated += 1
+        except Exception as e:
+            failed.append({"id": d["id"], "error": str(e)})
+    return {"migrated": migrated, "total_pending": len(docs), "failed": failed}
 
 
 @api.delete("/photos/{pid}")
@@ -898,11 +978,43 @@ async def startup():
         )
         logger.info("Admin password refreshed for %s", admin_email)
 
-    # Init storage
+    # Init legacy storage (best-effort, apenas para migrar fotos antigas)
     try:
         init_storage()
     except Exception as e:
-        logger.warning("Storage init failed: %s", e)
+        logger.warning("Legacy storage init failed (ignorável): %s", e)
+
+    # Migração automática de fotos legacy → base64 no MongoDB (best-effort,
+    # não bloqueia o arranque nem falha se o storage antigo estiver offline).
+    try:
+        q = {
+            "is_deleted": {"$ne": True},
+            "storage_path": {"$exists": True},
+            "$or": [{"data_base64": {"$exists": False}}, {"data_base64": None}],
+        }
+        pending = await db.photos.count_documents(q)
+        if pending:
+            logger.info("Photo migration: %d fotos pendentes → base64", pending)
+            docs = await db.photos.find(q, {"_id": 0}).to_list(5000)
+            migrated = 0
+            for d in docs:
+                try:
+                    data, legacy_ctype = get_object(d["storage_path"])
+                    await db.photos.update_one(
+                        {"id": d["id"]},
+                        {"$set": {
+                            "data_base64": base64.b64encode(data).decode("ascii"),
+                            "content_type": d.get("content_type") or legacy_ctype,
+                            "size": len(data),
+                            "migrated_at": now_iso(),
+                        }},
+                    )
+                    migrated += 1
+                except Exception as e:
+                    logger.warning("Photo %s migration failed: %s", d.get("id"), e)
+            logger.info("Photo migration done: %d/%d", migrated, pending)
+    except Exception as e:
+        logger.warning("Photo migration skipped: %s", e)
 
 
 @app.on_event("shutdown")
