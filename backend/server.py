@@ -889,6 +889,161 @@ async def delete_photo(pid: str, _: dict = Depends(require_editor)):
     return {"ok": True}
 
 
+# ---------- Backup / Restore ----------
+@api.get("/backup/export")
+async def backup_export(_: dict = Depends(require_editor)):
+    """Backup completo com fotos em base64 (para restore noutro ambiente)."""
+    athletes = await db.athletes.find({}, {"_id": 0}).to_list(5000)
+    evaluations = await db.evaluations.find({}, {"_id": 0}).to_list(50000)
+    weighins = await db.weighins.find({}, {"_id": 0}).to_list(100000)
+    # Photos: incluir data_base64 (podem ser grandes — backup pode chegar às centenas de MB)
+    photos = await db.photos.find({"is_deleted": {"$ne": True}}, {"_id": 0}).to_list(50000)
+    return {
+        "version": 1,
+        "exported_at": now_iso(),
+        "athletes": athletes,
+        "evaluations": evaluations,
+        "weighins": weighins,
+        "photos": photos,
+    }
+
+
+@api.post("/backup/import")
+async def backup_import(body: dict, user: dict = Depends(require_editor)):
+    """Restaura backup JSON com estratégia MERGE:
+    - Atletas: match por nome (case-insensitive). Se existe, mantém o atual e reutiliza
+      o id; se não existe, insere com o id do JSON.
+    - Avaliações: match por (athlete_id, date) — ignora duplicados.
+    - Pesagens: match por (athlete_id, date) — ignora duplicados.
+    - Fotos: match por (athlete_id, date, kind) — ignora duplicados. Aceita photos com
+      `data_base64` (novo formato) ou `storage_path` (legacy, será apenas metadata).
+    Devolve contagens do que foi inserido e ignorado.
+    """
+    stats = {
+        "athletes": {"inserted": 0, "matched": 0},
+        "evaluations": {"inserted": 0, "skipped": 0},
+        "weighins": {"inserted": 0, "skipped": 0},
+        "photos": {"inserted": 0, "skipped": 0, "no_data": 0},
+        "errors": [],
+    }
+
+    # 1) Atletas — construir mapa old_id -> new_id
+    # Carrega todos os atletas atuais e compara nomes normalizados em Python
+    # (mais robusto para trailing whitespace, case, acentos, parênteses, etc)
+    existing_athletes = await db.athletes.find({}, {"_id": 0, "id": 1, "nome": 1}).to_list(5000)
+    def _norm_name(s: str) -> str:
+        return " ".join((s or "").strip().split()).lower()
+    existing_by_name: dict[str, str] = {_norm_name(a["nome"]): a["id"] for a in existing_athletes}
+
+    id_map: dict[str, str] = {}
+    incoming_athletes = body.get("athletes") or []
+    for a in incoming_athletes:
+        try:
+            name = (a.get("nome") or "").strip()
+            if not name:
+                stats["errors"].append("atleta sem nome")
+                continue
+            key = _norm_name(name)
+            existing_id = existing_by_name.get(key)
+            if existing_id:
+                id_map[a.get("id", "")] = existing_id
+                stats["athletes"]["matched"] += 1
+                continue
+            new_a = dict(a)
+            new_a.pop("_id", None)
+            new_a.setdefault("id", new_id())
+            new_a.setdefault("created_at", now_iso())
+            new_a.setdefault("created_by", user["id"])
+            await db.athletes.insert_one(new_a)
+            id_map[a.get("id", "")] = new_a["id"]
+            existing_by_name[key] = new_a["id"]  # protege contra dupes no próprio JSON
+            stats["athletes"]["inserted"] += 1
+        except Exception as e:
+            stats["errors"].append(f"atleta {a.get('nome','?')}: {e}")
+
+    def _resolve_aid(old_aid: str) -> str | None:
+        return id_map.get(old_aid) or (old_aid if old_aid else None)
+
+    # 2) Avaliações — merge por (athlete_id, date)
+    for ev in body.get("evaluations") or []:
+        try:
+            aid = _resolve_aid(ev.get("athlete_id", ""))
+            if not aid:
+                continue
+            date = ev.get("date")
+            if not date:
+                continue
+            existing = await db.evaluations.find_one({"athlete_id": aid, "date": date}, {"_id": 0, "id": 1})
+            if existing:
+                stats["evaluations"]["skipped"] += 1
+                continue
+            doc = dict(ev)
+            doc.pop("_id", None)
+            doc["athlete_id"] = aid
+            doc.setdefault("id", new_id())
+            doc.setdefault("created_at", now_iso())
+            doc.setdefault("created_by", user["id"])
+            # Recalcula métricas contra o atleta atual (garante consistência)
+            ath = await db.athletes.find_one({"id": aid}, {"_id": 0})
+            if ath:
+                doc["metrics"] = compute_all(doc, ath)
+            await db.evaluations.insert_one(doc)
+            stats["evaluations"]["inserted"] += 1
+        except Exception as e:
+            stats["errors"].append(f"avaliação {ev.get('date','?')}: {e}")
+
+    # 3) Pesagens — merge por (athlete_id, date)
+    for w in body.get("weighins") or []:
+        try:
+            aid = _resolve_aid(w.get("athlete_id", ""))
+            if not aid or not w.get("date") or w.get("peso_kg") is None:
+                continue
+            existing = await db.weighins.find_one({"athlete_id": aid, "date": w["date"]}, {"_id": 0, "id": 1})
+            if existing:
+                stats["weighins"]["skipped"] += 1
+                continue
+            doc = dict(w)
+            doc.pop("_id", None)
+            doc["athlete_id"] = aid
+            doc.setdefault("id", new_id())
+            doc.setdefault("created_at", now_iso())
+            doc.setdefault("created_by", user["id"])
+            await db.weighins.insert_one(doc)
+            stats["weighins"]["inserted"] += 1
+        except Exception as e:
+            stats["errors"].append(f"pesagem {w.get('date','?')}: {e}")
+
+    # 4) Fotos — merge por (athlete_id, date, kind)
+    for p in body.get("photos") or []:
+        try:
+            aid = _resolve_aid(p.get("athlete_id", ""))
+            if not aid or not p.get("date") or not p.get("kind"):
+                continue
+            existing = await db.photos.find_one(
+                {"athlete_id": aid, "date": p["date"], "kind": p["kind"], "is_deleted": {"$ne": True}},
+                {"_id": 0, "id": 1},
+            )
+            if existing:
+                stats["photos"]["skipped"] += 1
+                continue
+            if not p.get("data_base64") and not p.get("storage_path"):
+                stats["photos"]["no_data"] += 1
+                continue
+            doc = dict(p)
+            doc.pop("_id", None)
+            doc["athlete_id"] = aid
+            doc.setdefault("id", new_id())
+            doc.setdefault("created_at", now_iso())
+            doc.setdefault("created_by", user["id"])
+            doc.setdefault("is_deleted", False)
+            await db.photos.insert_one(doc)
+            stats["photos"]["inserted"] += 1
+        except Exception as e:
+            stats["errors"].append(f"foto {p.get('date','?')}/{p.get('kind','?')}: {e}")
+
+    return stats
+
+
 # ---------- Monthly report ----------
 @api.get("/reports/monthly")
 async def monthly_report(month_a: str, month_b: str, _: dict = Depends(get_current_user)):
