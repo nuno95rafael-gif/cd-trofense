@@ -588,6 +588,41 @@ async def import_weighins(
 
     athletes = await db.athletes.find({}, {"_id": 0, "id": 1, "nome": 1}).to_list(2000)
     name_to_id = {a["nome"].strip().lower(): a["id"] for a in athletes}
+    # Índice auxiliar: primeiro-nome (token único) → id, apenas quando é único.
+    # Permite fazer match de "Emerson" → "Emerson Santos", "Mateus" → "Mateus Andrade", etc.
+    from collections import defaultdict as _dd
+    _first = _dd(list)
+    _last = _dd(list)
+    for a in athletes:
+        tokens = a["nome"].strip().lower().split()
+        if tokens:
+            _first[tokens[0]].append(a["id"])
+            _last[tokens[-1]].append(a["id"])
+    first_to_id = {k: v[0] for k, v in _first.items() if len(v) == 1}
+    last_to_id = {k: v[0] for k, v in _last.items() if len(v) == 1}
+
+    def _resolve_athlete(nome: str) -> str | None:
+        """Match tolerante: (1) nome completo exato,
+        (2) primeiro nome único, (3) 'X.Apelido' → primeiro nome começa por X + último nome único."""
+        key = nome.strip().lower()
+        if key in name_to_id:
+            return name_to_id[key]
+        # tokens = 1 → tentar primeiro nome único
+        tokens = key.split()
+        if len(tokens) == 1 and tokens[0] in first_to_id:
+            return first_to_id[tokens[0]]
+        # padrão "A.Granja" ou "A. Granja"
+        if "." in key:
+            parts = [p.strip() for p in key.replace(".", " ").split() if p.strip()]
+            if len(parts) == 2:
+                initial, last = parts
+                last_id = last_to_id.get(last)
+                if last_id:
+                    # confirma que o primeiro nome começa por essa inicial
+                    for a in athletes:
+                        if a["id"] == last_id and a["nome"].strip().lower().startswith(initial):
+                            return last_id
+        return None
 
     created = 0
     skipped: list[str] = []
@@ -610,7 +645,7 @@ async def import_weighins(
     async def _add(nome: str, date_str: str, peso: float):
         nonlocal created
         import math
-        aid = name_to_id.get(nome.strip().lower())
+        aid = _resolve_athlete(nome)
         if not aid:
             skipped.append(f"{nome}: atleta não existe")
             return
