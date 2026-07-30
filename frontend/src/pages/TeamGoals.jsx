@@ -30,7 +30,9 @@ export default function TeamGoals() {
       const info = computeGoalStatus({
         currentWeight,
         currentBf: a.last_metrics?.rw,
+        currentImc: a.last_metrics?.imc,
         goal: a.goal,
+        athlete: a,
       });
       return {
         id: a.id,
@@ -39,7 +41,9 @@ export default function TeamGoals() {
         idade: a.idade,
         currentWeight,
         currentBf: a.last_metrics?.rw,
+        currentImc: a.last_metrics?.imc,
         targetBf: a.goal?.bf_target_pct,
+        targetImc: a.goal?.imc_target,
         ...info,
       };
     });
@@ -66,7 +70,7 @@ export default function TeamGoals() {
         case "posicao": return (x.posicao || "").toLowerCase();
         case "currentWeight": return x.currentWeight ?? -1;
         case "currentBf": return x.currentBf ?? -1;
-        case "targetBf": return x.targetBf ?? -1;
+        case "targetBf": return x.primary === "imc" ? (x.targetImc ?? -1) : (x.targetBf ?? -1);
         case "targetWeight": return x.targetWeight ?? -1;
         case "delta": return x.absDelta ?? -1;
         default: return 0;
@@ -212,7 +216,7 @@ export default function TeamGoals() {
                 <Th onClick={() => toggleSort("priority")} testid="sort-priority">Estado{arrow("priority")}</Th>
                 <Th right onClick={() => toggleSort("currentWeight")} testid="sort-currentWeight">Peso atual{arrow("currentWeight")}</Th>
                 <Th right onClick={() => toggleSort("currentBf")} testid="sort-currentBf">% MG atual{arrow("currentBf")}</Th>
-                <Th right onClick={() => toggleSort("targetBf")} testid="sort-targetBf">% MG alvo{arrow("targetBf")}</Th>
+                <Th right onClick={() => toggleSort("targetBf")} testid="sort-targetBf">Alvo{arrow("targetBf")}</Th>
                 <Th right onClick={() => toggleSort("targetWeight")} testid="sort-targetWeight">Peso alvo{arrow("targetWeight")}</Th>
                 <Th right onClick={() => toggleSort("delta")} testid="sort-delta">Δ peso{arrow("delta")}</Th>
                 <th className="text-left px-4 py-3 min-w-[160px]">Progresso</th>
@@ -239,7 +243,13 @@ export default function TeamGoals() {
                     <td className="px-4 py-3"><GoalStatusPill status={r.status} label={r.label} /></td>
                     <td className="px-4 py-3 text-right num font-semibold">{r.currentWeight != null ? `${r.currentWeight} kg` : "—"}</td>
                     <td className="px-4 py-3 text-right num">{r.currentBf != null ? `${r.currentBf}%` : "—"}</td>
-                    <td className="px-4 py-3 text-right num">{r.targetBf != null ? `${r.targetBf}%` : "—"}</td>
+                    <td className="px-4 py-3 text-right num">
+                      {r.primary === "imc" && r.targetImc != null ? (
+                        <span>{r.targetImc}<span className="text-[10px] text-muted-foreground ml-1">IMC</span></span>
+                      ) : r.targetBf != null ? (
+                        <span>{r.targetBf}%<span className="text-[10px] text-muted-foreground ml-1">MG</span></span>
+                      ) : "—"}
+                    </td>
                     <td className="px-4 py-3 text-right num font-semibold">{r.targetWeight != null ? `${r.targetWeight} kg` : "—"}</td>
                     <td className="px-4 py-3 text-right">
                       {r.delta == null ? (

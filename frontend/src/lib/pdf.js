@@ -195,14 +195,16 @@ export async function exportTeamGoalsPdf(rows, counts) {
   const pageW = doc.internal.pageSize.getWidth();
 
   // Tabela — mesmas colunas que aparecem no ecrã da app (símbolos Σ/Δ substituídos por texto por incompatibilidade da fonte Helvetica)
-  const head = [["Atleta", "Posição", "Estado", "Peso atual", "% MG atual", "% MG alvo", "Peso alvo", "Dif. peso", "Direção"]];
+  const head = [["Atleta", "Posição", "Estado", "Peso atual", "% MG atual", "Alvo", "Peso alvo", "Dif. peso", "Direção"]];
   const body = rows.map((r) => [
     r.nome,
     r.posicao || "—",
     { content: r.label, status: r.status },
     r.currentWeight != null ? `${r.currentWeight} kg` : "—",
     r.currentBf != null ? `${r.currentBf}%` : "—",
-    r.targetBf != null ? `${r.targetBf}%` : "—",
+    r.primary === "imc" && r.targetImc != null
+      ? `IMC ${r.targetImc}`
+      : r.targetBf != null ? `${r.targetBf}% MG` : "—",
     r.targetWeight != null ? `${r.targetWeight} kg` : "—",
     r.absDelta != null ? `${r.absDelta} kg` : "—",
     r.direction === "perder" ? "A perder peso" : r.direction === "ganhar" ? "A ganhar peso" : r.direction === "manter" ? "No alvo" : "—",
@@ -562,13 +564,27 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
   drawLineChart(doc, "% MG · Reilly & Wallace", bfPoints, 14 + halfW + 6, chartY, halfW, chartH, "%");
 
   // Objetivo (se definido) — usa Y dinâmico depois dos gráficos + labels (+3 abaixo do gráfico)
-  const goalY = chartY + chartH + 14; // chart + labels + respiração
-  if (athlete.goal?.bf_target_pct != null && last?.metrics?.rw != null) {
-    const targetBf = athlete.goal.bf_target_pct;
+  const goalY = chartY + chartH + 14;
+  const goalInfo = computeGoalStatus({
+    currentWeight: last?.peso_kg,
+    currentBf: last?.metrics?.rw,
+    currentImc: last?.metrics?.imc,
+    goal: athlete.goal,
+    athlete,
+  });
+  if (goalInfo.targetWeight != null) {
     const currentBf = last.metrics.rw;
+    const currentImc = last.metrics.imc;
     const currentWeight = last.peso_kg;
-    const targetWeight = +(currentWeight * (100 - currentBf) / (100 - targetBf)).toFixed(1);
-    const delta = +(currentWeight - targetWeight).toFixed(1);
+    const targetWeight = goalInfo.targetWeight;
+    const delta = goalInfo.delta ?? 0;
+    const alvoLabel = goalInfo.primary === "imc"
+      ? `IMC ${goalInfo.targetImc}`
+      : `${goalInfo.targetBf}% MG`;
+    const atualLabel = goalInfo.primary === "imc"
+      ? (currentImc != null ? `${currentImc}` : "—")
+      : (currentBf != null ? `${currentBf}%` : "—");
+    const atualHeader = goalInfo.primary === "imc" ? "IMC atual" : "% MG atual";
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(...CLUB_NAVY);
@@ -578,10 +594,10 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
     autoTable(doc, {
       startY: goalY,
       theme: "plain",
-      head: [["% MG atual", "% MG alvo", "Peso atual", "Peso alvo", "Dif. peso"]],
+      head: [[atualHeader, "Alvo", "Peso atual", "Peso alvo", "Dif. peso"]],
       body: [[
-        `${currentBf}%`,
-        `${targetBf}%`,
+        atualLabel,
+        alvoLabel,
         `${currentWeight} kg`,
         `${targetWeight} kg`,
         `${Math.abs(delta)} kg ${delta > 0.1 ? "a perder" : delta < -0.1 ? "a ganhar" : "no alvo"}`,

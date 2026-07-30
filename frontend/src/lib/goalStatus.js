@@ -1,67 +1,109 @@
-// Helpers para o objetivo de peso (baseado em % MG alvo → peso alvo).
-// Um status granular por atleta: Atingido / Quase lá / Em progresso / Prioritário / Sem objetivo.
+// Helpers para o objetivo de peso.
+// Cada atleta pode ter dois alvos independentes:
+//   • bf_target_pct — objetivo de % Massa Gorda
+//   • imc_target   — objetivo de IMC
+// E escolhe qual dos dois é a "métrica primária" (`primary_metric`: 'bf' | 'imc'),
+// que determina qual peso alvo é usado para status/Δ/progresso e mostrado em destaque.
 
 /**
- * Calcula peso alvo a partir do peso atual, % MG atual e % MG alvo.
- * Fórmula fisiológica: preserva a massa magra, altera apenas a massa gorda.
+ * Peso alvo pelo % MG — preserva massa magra, altera só massa gorda.
  *   peso_alvo = peso_atual * (100 - bf_atual) / (100 - bf_alvo)
- * Retorna null se algum input estiver em falta.
  */
-export function computeTargetWeight(currentWeight, currentBf, targetBf) {
+export function computeTargetWeightFromBf(currentWeight, currentBf, targetBf) {
   if (currentWeight == null || currentBf == null || targetBf == null) return null;
   if (targetBf >= 100 || currentBf >= 100) return null;
   return +(currentWeight * (100 - currentBf) / (100 - targetBf)).toFixed(1);
 }
 
 /**
- * Regras de estado granular (aplicadas ao |Δ| entre peso atual e peso alvo):
- *   ≤ 0.5 kg  → Atingido       (verde)
- *   ≤ 2.0 kg  → Quase lá       (verde claro)
- *   ≤ 5.0 kg  → Em progresso   (amarelo)
- *   > 5.0 kg  → Prioritário    (vermelho)
- * Se o atleta ainda não tem objetivo definido → 'sem_objetivo' (cinza).
- * Direção (perder / ganhar) é indicada em separado (delta com sinal).
+ * Peso alvo pelo IMC — peso = IMC × (altura em metros)².
+ * `altura_cm` é a altura em cm (guardada no atleta).
  */
-export function computeGoalStatus({ currentWeight, currentBf, goal }) {
-  const targetBf = goal?.bf_target_pct;
-  if (targetBf == null) {
+export function computeTargetWeightFromImc(targetImc, altura_cm) {
+  if (targetImc == null || !altura_cm) return null;
+  const h = altura_cm / 100;
+  return +(targetImc * h * h).toFixed(1);
+}
+
+// Alias mantido para compat com código antigo (usa fórmula do %MG).
+export const computeTargetWeight = computeTargetWeightFromBf;
+
+/**
+ * Devolve o resumo do estado do objetivo escolhido como primário.
+ * Também expõe os dois pesos alvo (bf/imc) para poder mostrar o secundário.
+ *
+ * Params:
+ *   currentWeight  — peso atual (da última avaliação/pesagem)
+ *   currentBf      — % MG atual (última avaliação)
+ *   currentImc     — IMC atual (última avaliação)
+ *   goal           — { bf_target_pct, imc_target, primary_metric }
+ *   athlete        — { altura_cm } (necessário para o alvo por IMC)
+ */
+export function computeGoalStatus({ currentWeight, currentBf, currentImc, goal, athlete }) {
+  const targetBf = goal?.bf_target_pct ?? null;
+  const targetImc = goal?.imc_target ?? null;
+  const primary = goal?.primary_metric === "imc" ? "imc" : "bf";
+  const targetWeightBf = computeTargetWeightFromBf(currentWeight, currentBf, targetBf);
+  const targetWeightImc = computeTargetWeightFromImc(targetImc, athlete?.altura_cm);
+
+  const hasBf = targetBf != null;
+  const hasImc = targetImc != null;
+
+  if (!hasBf && !hasImc) {
     return {
       status: "sem_objetivo",
       label: "Sem objetivo",
+      primary,
+      targetBf,
+      targetImc,
       targetWeight: null,
+      targetWeightBf,
+      targetWeightImc,
       delta: null,
       absDelta: null,
       direction: null,
       color: "muted",
     };
   }
-  const targetWeight = computeTargetWeight(currentWeight, currentBf, targetBf);
-  if (targetWeight == null) {
+
+  // Se a métrica primária escolhida não tem alvo definido, cai para a outra.
+  const effectivePrimary = primary === "imc" ? (hasImc ? "imc" : "bf") : (hasBf ? "bf" : "imc");
+  const targetWeight = effectivePrimary === "imc" ? targetWeightImc : targetWeightBf;
+
+  if (targetWeight == null || currentWeight == null) {
     return {
       status: "sem_dados",
       label: "Sem avaliação recente",
+      primary: effectivePrimary,
+      targetBf,
+      targetImc,
       targetWeight: null,
+      targetWeightBf,
+      targetWeightImc,
       delta: null,
       absDelta: null,
       direction: null,
       color: "muted",
     };
   }
+
   const delta = +(currentWeight - targetWeight).toFixed(1); // positivo = precisa de perder
   const abs = Math.abs(delta);
   const direction = delta > 0.1 ? "perder" : delta < -0.1 ? "ganhar" : "manter";
 
   let status, label, color;
-  if (abs <= 0.5) {
-    status = "atingido"; label = "Atingido"; color = "green";
-  } else if (abs <= 2) {
-    status = "quase_la"; label = "Quase lá"; color = "green-soft";
-  } else if (abs <= 5) {
-    status = "em_progresso"; label = "Em progresso"; color = "amber";
-  } else {
-    status = "prioritario"; label = "Prioritário"; color = "red";
-  }
-  return { status, label, targetWeight, delta, absDelta: abs, direction, color };
+  if (abs <= 0.5) { status = "atingido"; label = "Atingido"; color = "green"; }
+  else if (abs <= 2) { status = "quase_la"; label = "Quase lá"; color = "green-soft"; }
+  else if (abs <= 5) { status = "em_progresso"; label = "Em progresso"; color = "amber"; }
+  else { status = "prioritario"; label = "Prioritário"; color = "red"; }
+
+  return {
+    status, label,
+    primary: effectivePrimary,
+    targetBf, targetImc,
+    targetWeight, targetWeightBf, targetWeightImc,
+    delta, absDelta: abs, direction, color,
+  };
 }
 
 // Ordem de prioridade para ordenação decrescente (mais urgente primeiro)

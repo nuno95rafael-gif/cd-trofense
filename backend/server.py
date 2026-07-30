@@ -164,7 +164,10 @@ class WeighinIn(BaseModel):
 
 
 class GoalIn(BaseModel):
-    bf_target_pct: float
+    bf_target_pct: Optional[float] = None
+    imc_target: Optional[float] = None
+    # métrica de referência: "bf" (% MG) ou "imc". Determina qual peso alvo é mostrado.
+    primary_metric: Optional[str] = "bf"
 
 
 # ---------- Email (Emergent-managed Resend) ----------
@@ -414,7 +417,14 @@ async def delete_athlete(aid: str, _: dict = Depends(require_editor)):
 
 @api.put("/athletes/{aid}/goal")
 async def set_goal(aid: str, body: GoalIn, _: dict = Depends(require_editor)):
-    r = await db.athletes.update_one({"id": aid}, {"$set": {"goal": {"bf_target_pct": body.bf_target_pct, "updated_at": now_iso()}}})
+    primary = body.primary_metric if body.primary_metric in ("bf", "imc") else "bf"
+    goal_doc = {
+        "bf_target_pct": body.bf_target_pct,
+        "imc_target": body.imc_target,
+        "primary_metric": primary,
+        "updated_at": now_iso(),
+    }
+    r = await db.athletes.update_one({"id": aid}, {"$set": {"goal": goal_doc}})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Atleta não encontrado")
     return {"ok": True}
