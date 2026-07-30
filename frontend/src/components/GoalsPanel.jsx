@@ -22,14 +22,24 @@ export function GoalsPanel({ athlete, evaluations, onSaved, isEditor }) {
   const currentImc = last?.metrics?.imc;
   const currentWeight = last?.peso_kg;
 
-  const info = computeGoalStatus({ currentWeight, currentBf, currentImc, goal, athlete });
+  // Preview live: constrói o "goal" a partir do estado local (o que o utilizador
+  // está a digitar) em vez do goal guardado, para que peso alvo / Δ / estado
+  // reajam instantaneamente sem precisar de clicar em "Guardar".
+  const draftGoal = {
+    bf_target_pct: targetBf !== "" && targetBf != null ? Number(targetBf) : null,
+    imc_target: targetImc !== "" && targetImc != null ? Number(targetImc) : null,
+    primary_metric: primary,
+    updated_at: goal?.updated_at,
+  };
+  const info = computeGoalStatus({ currentWeight, currentBf, currentImc, goal: draftGoal, athlete });
   const targetWeight = info.targetWeight;
 
-  // Barra de progresso: usa a métrica primária efetiva
+  // Barra de progresso: usa o goal GUARDADO (o local só serve para preview do alvo),
+  // porque o progresso só faz sentido calcular contra um objetivo confirmado.
   const progress = (() => {
     if (!goal || evaluations.length < 2) return null;
     const first = evaluations[0]?.metrics;
-    if (info.primary === "imc") {
+    if (goal.primary_metric === "imc") {
       const startImc = first?.imc;
       if (startImc == null || currentImc == null || goal.imc_target == null) return null;
       if (Math.abs(startImc - goal.imc_target) < 0.01) return 100;
