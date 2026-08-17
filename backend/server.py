@@ -1159,15 +1159,11 @@ def _month_bounds(month: str) -> tuple[str, str]:
 
 
 async def _month_snapshot(aid: str, month: str) -> dict:
-    """Devolve a última avaliação do mês (ou null se não houver) + peso resultante
-    da última pesagem do mês (fallback ao peso da avaliação)."""
+    """Devolve a última avaliação do mês (ou null se não houver). Todos os
+    valores vêm exclusivamente da avaliação para garantir coerência entre
+    peso, %MG, IMC, Massa Muscular e perímetros."""
     start, end = _month_bounds(month)
     ev = await db.evaluations.find_one(
-        {"athlete_id": aid, "date": {"$gte": start, "$lt": end}},
-        {"_id": 0},
-        sort=[("date", -1)],
-    )
-    weighin = await db.weighins.find_one(
         {"athlete_id": aid, "date": {"$gte": start, "$lt": end}},
         {"_id": 0},
         sort=[("date", -1)],
@@ -1183,11 +1179,7 @@ async def _month_snapshot(aid: str, month: str) -> dict:
         pmc = float(coxaD)
     elif coxaE is not None:
         pmc = float(coxaE)
-    peso = None
-    if weighin and weighin.get("peso_kg") is not None:
-        peso = weighin["peso_kg"]
-    elif ev and ev.get("peso_kg") is not None:
-        peso = ev["peso_kg"]
+    peso = ev.get("peso_kg") if ev else None
     return {
         "date": ev.get("date") if ev else None,
         "peso": peso,

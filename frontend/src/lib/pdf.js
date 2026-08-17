@@ -954,8 +954,215 @@ export async function exportMonthlyReportPdf(data, meta = {}) {
     margin: { top: 34, left: 8, right: 8, bottom: 15 },
   });
 
+  // ---------- Página Resumo ----------
+  drawMonthlySummaryPage(doc, data, meta, logo);
+
   drawFooter(doc);
   const filename = `trofense-relatorio-mensal-${data.month_a}-vs-${data.month_b}.pdf`;
   doc.save(filename);
   return { filename };
+}
+
+/** Página resumo do relatório mensal — KPIs + destaques. */
+function drawMonthlySummaryPage(doc, data, meta, logoData) {
+  doc.addPage("a4", "landscape");
+  const pageW = doc.internal.pageSize.getWidth();
+
+  // Header compacto igual ao da tabela principal
+  doc.setFillColor(...CLUB_NAVY);
+  doc.rect(0, 0, pageW, 26, "F");
+  doc.setFillColor(...CLUB_RED);
+  doc.rect(0, 26, pageW, 1.2, "F");
+  doc.setFillColor(...CLUB_YELLOW);
+  doc.rect(0, 27.2, pageW, 0.6, "F");
+  if (logoData) { try { doc.addImage(logoData, "PNG", 10, 4, 18, 18); } catch { /* skip */ } }
+  doc.setTextColor(255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("CLUBE DESPORTIVO TROFENSE", 32, 10);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text("Departamento Médico · Resumo Executivo", 32, 15);
+  if (meta.season) doc.text(`Época ${meta.season}`, 32, 20);
+  if (meta.doctor) doc.text(`Dr. ${meta.doctor}`, 32, 24);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("Resumo Executivo · Evolução do Plantel", pageW / 2, 14, { align: "center" });
+
+  // Cálculo dos KPIs (só considera atletas com avaliação nos DOIS meses)
+  const rowsWithBoth = data.rows.filter((r) => r.month_a.has_eval && r.month_b.has_eval);
+  const N = rowsWithBoth.length;
+
+  const nums = (getter) => rowsWithBoth.map(getter).filter((v) => v != null && !isNaN(v));
+  const avg = (arr) => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(2) : null;
+
+  const deltaPesoAvg = avg(nums((r) => r.delta.peso));
+  const deltaSoma8Avg = avg(nums((r) => r.delta.soma8));
+  const reduzMG = rowsWithBoth.filter((r) => r.delta.bf != null && r.delta.bf < -0.1).length;
+  const ganhaMM = rowsWithBoth.filter((r) => r.delta.muscle_mass_kg != null && r.delta.muscle_mass_kg > 0.1).length;
+
+  // Cards KPI
+  const cardY = 38;
+  const cardH = 26;
+  const gap = 6;
+  const cardW = (pageW - 20 - gap * 3) / 4;
+  const kpis = [
+    {
+      label: "Dif. Peso médio do plantel",
+      value: deltaPesoAvg == null ? "—" : `${deltaPesoAvg > 0 ? "+" : ""}${deltaPesoAvg} kg`,
+      color: deltaPesoAvg == null ? [140, 140, 140] : (deltaPesoAvg < -0.1 ? [16, 185, 129] : deltaPesoAvg > 0.1 ? CLUB_RED : CLUB_NAVY),
+    },
+    {
+      label: "Reduziram % MG",
+      value: N ? `${reduzMG} / ${N}` : "—",
+      color: [16, 185, 129],
+    },
+    {
+      label: "Ganharam Massa Muscular",
+      value: N ? `${ganhaMM} / ${N}` : "—",
+      color: [16, 185, 129],
+    },
+    {
+      label: "Dif. Soma Pregas médio",
+      value: deltaSoma8Avg == null ? "—" : `${deltaSoma8Avg > 0 ? "+" : ""}${deltaSoma8Avg} mm`,
+      color: deltaSoma8Avg == null ? [140, 140, 140] : (deltaSoma8Avg < 0 ? [16, 185, 129] : CLUB_RED),
+    },
+  ];
+  kpis.forEach((k, i) => {
+    const x = 10 + i * (cardW + gap);
+    doc.setDrawColor(220);
+    doc.setFillColor(248, 249, 251);
+    doc.roundedRect(x, cardY, cardW, cardH, 1.5, 1.5, "FD");
+    doc.setTextColor(120);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.text(k.label.toUpperCase(), x + 4, cardY + 6);
+    doc.setTextColor(...k.color);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text(k.value, x + 4, cardY + 20);
+  });
+
+  // ---------- Destaques (Top 3 melhorias) ----------
+  const sectionY = cardY + cardH + 12;
+  doc.setTextColor(...CLUB_NAVY);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Destaques do mês", 10, sectionY);
+  doc.setDrawColor(...CLUB_RED);
+  doc.setLineWidth(0.5);
+  doc.line(10, sectionY + 1.5, 55, sectionY + 1.5);
+
+  const top3 = (arr, sortKey, asc = true) => [...arr]
+    .filter((r) => r.delta[sortKey] != null)
+    .sort((a, b) => asc ? a.delta[sortKey] - b.delta[sortKey] : b.delta[sortKey] - a.delta[sortKey])
+    .slice(0, 3);
+
+  const topMG = top3(rowsWithBoth, "bf", true);       // menor delta MG = maior redução
+  const topMM = top3(rowsWithBoth, "muscle_mass_kg", false); // maior delta MM = maior ganho
+  const topPeso = top3(rowsWithBoth, "peso", true);    // menor delta peso = maior perda
+
+  const listY = sectionY + 6;
+  const listH = 46;
+  const listW = (pageW - 20 - gap * 2) / 3;
+
+  const drawList = (x, title, rows, unit, positiveIsGood) => {
+    doc.setDrawColor(220);
+    doc.setFillColor(255);
+    doc.rect(x, listY, listW, listH, "S");
+    doc.setFillColor(...CLUB_NAVY);
+    doc.rect(x, listY, listW, 6, "F");
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(title.toUpperCase(), x + 3, listY + 4);
+    doc.setTextColor(60);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    if (rows.length === 0) {
+      doc.setTextColor(140);
+      doc.setFont("helvetica", "italic");
+      doc.text("Sem dados suficientes", x + 3, listY + 15);
+      return;
+    }
+    rows.forEach((r, i) => {
+      const y = listY + 12 + i * 11;
+      // rank badge
+      doc.setFillColor(...CLUB_YELLOW);
+      doc.circle(x + 5, y - 1.5, 2.2, "F");
+      doc.setTextColor(...CLUB_NAVY);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      doc.text(String(i + 1), x + 5, y, { align: "center", baseline: "middle" });
+      // name
+      doc.setTextColor(...CLUB_NAVY);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(r.nome.length > 22 ? r.nome.substring(0, 21) + "…" : r.nome, x + 10, y);
+      // delta
+      const dKey = title.includes("MG") ? "bf" : title.includes("Muscular") ? "muscle_mass_kg" : "peso";
+      const val = r.delta[dKey];
+      const sign = val > 0 ? "+" : "";
+      const good = positiveIsGood ? val > 0 : val < 0;
+      doc.setTextColor(...(good ? [16, 185, 129] : CLUB_RED));
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text(`${sign}${val}${unit}`, x + listW - 3, y, { align: "right" });
+    });
+  };
+
+  drawList(10, "Top 3 · redução de % MG", topMG, "%", false);
+  drawList(10 + listW + gap, "Top 3 · ganho de Massa Muscular", topMM, " kg", true);
+  drawList(10 + (listW + gap) * 2, "Top 3 · maior perda de peso", topPeso, " kg", false);
+
+  // ---------- Alertas ----------
+  const alertY = listY + listH + 10;
+  const alertsPeso = rowsWithBoth.filter((r) => r.delta.peso != null && r.delta.peso > 1);
+  const alertsMG = rowsWithBoth.filter((r) => r.delta.bf != null && r.delta.bf > 0.5);
+  const alerts = [...new Set([...alertsPeso, ...alertsMG].map((r) => r.athlete_id))]
+    .map((id) => rowsWithBoth.find((r) => r.athlete_id === id))
+    .filter(Boolean);
+
+  doc.setTextColor(...CLUB_RED);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Alertas · atenção necessária", 10, alertY);
+  doc.setDrawColor(...CLUB_RED);
+  doc.line(10, alertY + 1.5, 70, alertY + 1.5);
+  doc.setFontSize(7.5);
+  doc.setFont("helvetica", "italic");
+  doc.setTextColor(120);
+  doc.text("Dif. peso > 1 kg ou Dif. % MG > 0,5%", 10, alertY + 6);
+
+  if (alerts.length === 0) {
+    doc.setTextColor(16, 185, 129);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text("Sem alertas — plantel dentro dos limites este mês.", 10, alertY + 16);
+  } else {
+    autoTable(doc, {
+      startY: alertY + 8,
+      theme: "grid",
+      head: [["Atleta", "Peso Ant.", "Peso Atual", "Dif. Peso", "% MG Ant.", "% MG Atual", "Dif. % MG"]],
+      body: alerts.map((r) => {
+        const dp = r.delta.peso;
+        const dmg = r.delta.bf;
+        return [
+          r.nome,
+          r.month_a.peso ?? "—",
+          r.month_b.peso ?? "—",
+          { content: dp != null ? `${dp > 0 ? "+" : ""}${dp} kg` : "—", styles: { textColor: dp != null && dp > 1 ? CLUB_RED : [60, 60, 60], fontStyle: "bold" } },
+          r.month_a.bf != null ? `${r.month_a.bf}%` : "—",
+          r.month_b.bf != null ? `${r.month_b.bf}%` : "—",
+          { content: dmg != null ? `${dmg > 0 ? "+" : ""}${dmg}%` : "—", styles: { textColor: dmg != null && dmg > 0.5 ? CLUB_RED : [60, 60, 60], fontStyle: "bold" } },
+        ];
+      }),
+      styles: { fontSize: 9, cellPadding: 2, lineColor: [230, 230, 235], lineWidth: 0.15, halign: "center" },
+      headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 8, fontStyle: "bold" },
+      columnStyles: {
+        0: { halign: "left", fontStyle: "bold", cellWidth: 55, textColor: CLUB_NAVY },
+      },
+      margin: { left: 10, right: 10 },
+    });
+  }
 }
