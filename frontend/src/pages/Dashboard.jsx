@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, TrendingUp, Users, Weight, Activity, FileDown } from "lucide-react";
 import { exportDashboardPdf } from "@/lib/pdf";
+import { MonthlyKpisStrip } from "@/components/MonthlyKpisStrip";
 
 const COLS = [
   { key: "nome", label: "Nome" },
@@ -149,6 +150,8 @@ export default function Dashboard() {
         <KpiCard label="Em Ótimo (<9%)" value={stats?.otimo ?? "—"} icon={Activity} testid="kpi-otimo" />
         <KpiCard label="Atenção / Alto" value={stats ? `${stats.atencao} / ${stats.alto}` : "—"} icon={Weight} testid="kpi-warn" />
       </div>
+
+      <MonthlyKpisStrip />
 
       <Card className="p-4">
         <div className="flex flex-wrap items-center gap-3 pb-4">
