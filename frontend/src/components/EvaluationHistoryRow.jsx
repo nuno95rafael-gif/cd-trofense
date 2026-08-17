@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2, Pencil } from "lucide-react";
 import { StatusPill } from "@/components/StatusPill";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { EvaluationForm } from "@/components/EvaluationForm";
 
 const PREGAS = [
   ["peito", "Peito"],
@@ -25,8 +26,9 @@ const PER = [
   ["anca", "Anca"],
 ];
 
-export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
+export function EvaluationHistoryRow({ evaluation, athlete, isEditor, onDelete, onEdited }) {
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const e = evaluation;
   const m = e.metrics || {};
 
@@ -50,12 +52,38 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
           <span>Σ8 <b>{m.soma8 != null ? `${Math.round(m.soma8)} mm` : "—"}</b></span>
           <StatusPill status={m.status_rw ?? m.status} />
           {isEditor && (
-            <Button size="sm" variant="ghost" onClick={() => onDelete(e.id)} data-testid={`delete-eval-${e.id}`}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            <>
+              <Button size="sm" variant="ghost" onClick={() => setEditOpen(true)} data-testid={`edit-eval-${e.id}`} title="Editar avaliação">
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => onDelete(e.id)} data-testid={`delete-eval-${e.id}`} title="Apagar avaliação">
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </>
           )}
         </div>
       </div>
+
+      {editOpen && athlete && (
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Editar avaliação · {new Date(e.date).toLocaleDateString("pt-PT")}</DialogTitle>
+              <DialogDescription>
+                Modifica os valores da avaliação. As métricas serão recalculadas automaticamente com base nos dados atuais do atleta.
+              </DialogDescription>
+            </DialogHeader>
+            <EvaluationForm
+              athlete={athlete}
+              evaluation={e}
+              onSaved={() => {
+                setEditOpen(false);
+                onEdited && onEdited();
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       {open && (
         <div className="border-t px-4 py-4 bg-secondary/30 space-y-4">
@@ -141,6 +169,11 @@ export function EvaluationHistoryRow({ evaluation, isEditor, onDelete }) {
               {e.created_at && (
                 <span>
                   em <b className="text-foreground/80">{new Date(e.created_at).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" })}</b>
+                </span>
+              )}
+              {e.updated_at && (
+                <span className="italic">
+                  · editado em <b className="text-foreground/80">{new Date(e.updated_at).toLocaleString("pt-PT", { dateStyle: "short", timeStyle: "short" })}</b>
                 </span>
               )}
             </div>

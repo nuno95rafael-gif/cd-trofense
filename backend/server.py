@@ -498,6 +498,26 @@ async def delete_evaluation(eid: str, _: dict = Depends(require_editor)):
     return {"ok": True}
 
 
+@api.put("/evaluations/{eid}")
+async def update_evaluation(eid: str, body: EvaluationIn, user: dict = Depends(require_editor)):
+    """Edita uma avaliação existente. Recalcula automaticamente todas as métricas
+    contra os dados atuais do atleta e atualiza o campo `updated_at` + `updated_by`."""
+    existing = await db.evaluations.find_one({"id": eid}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Avaliação não encontrada")
+    athlete = await db.athletes.find_one({"id": existing["athlete_id"]}, {"_id": 0})
+    if not athlete:
+        raise HTTPException(status_code=404, detail="Atleta não encontrado")
+    upd = body.model_dump()
+    upd["metrics"] = compute_all(upd, athlete)
+    upd["updated_at"] = now_iso()
+    upd["updated_by"] = user["id"]
+    await db.evaluations.update_one({"id": eid}, {"$set": upd})
+    ev = await db.evaluations.find_one({"id": eid}, {"_id": 0})
+    await _enrich_user_names([ev])
+    return ev
+
+
 @api.post("/preview-metrics")
 async def preview_metrics(body: dict, _: dict = Depends(get_current_user)):
     """Cálculo rápido do lado do servidor (útil se cliente não quiser calcular).

@@ -230,11 +230,13 @@ export default function AthleteProfile() {
                   <EvaluationHistoryRow
                     key={e.id}
                     evaluation={e}
+                    athlete={athlete}
                     isEditor={isEditor}
                     onDelete={async (id) => {
                       await api.delete(`/evaluations/${id}`);
                       reload();
                     }}
+                    onEdited={reload}
                   />
                 ))}
               </div>

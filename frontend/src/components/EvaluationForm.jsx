@@ -31,12 +31,14 @@ const PERIM = [
   { k: "anca", l: "Anca" },
 ];
 
-export function EvaluationForm({ athlete, onSaved }) {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [peso, setPeso] = useState("");
-  const [age, setAge] = useState(athlete.idade || "");
-  const [p, setP] = useState({});
-  const [per, setPer] = useState({});
+export function EvaluationForm({ athlete, evaluation, onSaved }) {
+  const isEdit = !!evaluation;
+  const [date, setDate] = useState(evaluation?.date || new Date().toISOString().slice(0, 10));
+  const [peso, setPeso] = useState(evaluation?.peso_kg ?? "");
+  const [age, setAge] = useState(evaluation?.age_at_eval ?? athlete.idade ?? "");
+  const [p, setP] = useState(evaluation?.pregas || {});
+  const [per, setPer] = useState(evaluation?.perimetros || {});
+  const [notas, setNotas] = useState(evaluation?.notas || "");
   const [saving, setSaving] = useState(false);
   const [photoBlobs, setPhotoBlobs] = useState({ frontal: null, perfil: null, costas: null });
   const [photoPreviews, setPhotoPreviews] = useState({ frontal: null, perfil: null, costas: null });
@@ -57,13 +59,22 @@ export function EvaluationForm({ athlete, onSaved }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const { data: newEval } = await api.post(`/athletes/${athlete.id}/evaluations`, {
+      const payload = {
         date,
-        peso_kg: peso ? Number(peso) : null,
-        age_at_eval: age ? Number(age) : null,
+        peso_kg: peso !== "" ? Number(peso) : null,
+        age_at_eval: age !== "" ? Number(age) : null,
         pregas: p,
         perimetros: per,
-      });
+        notas: notas || null,
+      };
+      let evalId;
+      if (isEdit) {
+        const { data } = await api.put(`/evaluations/${evaluation.id}`, payload);
+        evalId = data.id;
+      } else {
+        const { data: newEval } = await api.post(`/athletes/${athlete.id}/evaluations`, payload);
+        evalId = newEval.id;
+      }
       // Upload optional photos linked to this evaluation
       for (const kind of ["frontal", "perfil", "costas"]) {
         const blob = photoBlobs[kind];
@@ -72,7 +83,7 @@ export function EvaluationForm({ athlete, onSaved }) {
         fd.append("file", new File([blob], `${kind}.jpg`, { type: "image/jpeg" }));
         fd.append("date", date);
         fd.append("kind", kind);
-        fd.append("evaluation_id", newEval.id);
+        fd.append("evaluation_id", evalId);
         try {
           await api.post(`/athletes/${athlete.id}/photos`, fd, {
             headers: { "Content-Type": "multipart/form-data" },
@@ -81,8 +92,10 @@ export function EvaluationForm({ athlete, onSaved }) {
           toast.error(`Foto ${kind}: ${formatApiError(err.response?.data?.detail)}`);
         }
       }
-      toast.success("Avaliação guardada");
-      setP({}); setPer({}); setPeso("");
+      toast.success(isEdit ? "Avaliação atualizada" : "Avaliação guardada");
+      if (!isEdit) {
+        setP({}); setPer({}); setPeso(""); setNotas("");
+      }
       Object.values(photoPreviews).forEach((u) => u && URL.revokeObjectURL(u));
       setPhotoBlobs({ frontal: null, perfil: null, costas: null });
       setPhotoPreviews({ frontal: null, perfil: null, costas: null });
@@ -223,7 +236,7 @@ export function EvaluationForm({ athlete, onSaved }) {
 
       <div className="flex justify-end">
         <Button type="submit" disabled={saving} data-testid="save-eval-btn" className="min-w-36">
-          {saving ? "A guardar..." : "Guardar avaliação"}
+          {saving ? "A guardar..." : (isEdit ? "Guardar alterações" : "Guardar avaliação")}
         </Button>
       </div>
 

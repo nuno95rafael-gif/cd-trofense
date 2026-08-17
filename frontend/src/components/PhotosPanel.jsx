@@ -58,11 +58,31 @@ export function PhotosPanel({ athleteId, evaluations, isEditor }) {
   const photosByDateKind = useMemo(() => {
     const map = {};
     photos.forEach((p) => {
+      if (p.kind === "profile") return; // profile avatar não conta nas fotos por avaliação
       map[p.date] = map[p.date] || {};
       map[p.date][p.kind] = p;
     });
     return map;
   }, [photos]);
+
+  // Para cada slot (frontal/perfil/costas) na data selecionada, se não houver
+  // foto própria, procura a mais recente das datas anteriores. Devolve
+  // { photo, inheritedFromDate | null }.
+  const resolveSlot = (kind) => {
+    if (!selectedDate) return { photo: null, inheritedFromDate: null };
+    const own = photosByDateKind[selectedDate]?.[kind];
+    if (own) return { photo: own, inheritedFromDate: null };
+    const olderDates = Object.keys(photosByDateKind)
+      .filter((d) => d < selectedDate)
+      .sort()
+      .reverse();
+    for (const d of olderDates) {
+      if (photosByDateKind[d]?.[kind]) {
+        return { photo: photosByDateKind[d][kind], inheritedFromDate: d };
+      }
+    }
+    return { photo: null, inheritedFromDate: null };
+  };
 
   const currentEvaluation = useMemo(
     () => evaluations?.find((e) => e.date === selectedDate),
@@ -180,13 +200,14 @@ export function PhotosPanel({ athleteId, evaluations, isEditor }) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {KINDS.map(({ key, label }) => {
-              const photo = photosByDateKind[selectedDate]?.[key];
+              const { photo, inheritedFromDate } = resolveSlot(key);
+              const isInherited = !!inheritedFromDate;
               const inputKey = `${selectedDate}-${key}`;
               return (
                 <div key={key} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold">{label}</span>
-                    {isEditor && photo && (
+                    {isEditor && photo && !isInherited && (
                       <Select value={photo.kind} onValueChange={(v) => v !== photo.kind && changeKind(photo, v)}>
                         <SelectTrigger className="h-7 w-24 text-xs" data-testid={`photo-kind-${key}`}>
                           <Move className="w-3 h-3 mr-1" />
@@ -199,11 +220,18 @@ export function PhotosPanel({ athleteId, evaluations, isEditor }) {
                     )}
                   </div>
                   <div
-                    className="relative rounded-md overflow-hidden border"
+                    className={`relative rounded-md overflow-hidden border ${isInherited ? "border-dashed" : ""}`}
                     style={{ aspectRatio: "3 / 4", backgroundColor: "hsl(var(--background))" }}
                   >
                     {photo && blobs[photo.id] ? (
-                      <img src={blobs[photo.id]} alt={label} className="w-full h-full object-contain" />
+                      <>
+                        <img src={blobs[photo.id]} alt={label} className={`w-full h-full object-contain ${isInherited ? "opacity-80" : ""}`} />
+                        {isInherited && (
+                          <div className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[10px] uppercase tracking-widest px-2 py-1 text-center">
+                            De {new Date(inheritedFromDate).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-xs gap-2">
                         {isEditor ? (
@@ -216,7 +244,7 @@ export function PhotosPanel({ athleteId, evaluations, isEditor }) {
                         )}
                       </div>
                     )}
-                    {isEditor && photo && (
+                    {isEditor && photo && !isInherited && (
                       <div className="absolute top-2 right-2 flex gap-1">
                         <Button size="icon" variant="secondary" onClick={() => startRecrop(photo)} title="Recortar" data-testid={`recrop-${photo.id}`}>
                           <Crop className="w-4 h-4" />
@@ -245,7 +273,7 @@ export function PhotosPanel({ athleteId, evaluations, isEditor }) {
                         data-testid={`upload-${key}-btn`}
                       >
                         <Upload className="w-4 h-4" />
-                        {photo ? "Substituir" : "Adicionar foto"}
+                        {isInherited ? "Adicionar nova" : (photo ? "Substituir" : "Adicionar foto")}
                       </Button>
                     </>
                   )}
