@@ -788,3 +788,174 @@ export async function exportAthletePdfAsBase64(athlete, evals, weighins) {
 
 // Re-export computeGoalStatus for convenience if needed by callers
 export { computeGoalStatus };
+
+/** PDF do Relatório Mensal Comparativo — landscape com duas colunas por métrica (A/U).
+ *  Formato inspirado no template do departamento médico.
+ *  @param {object} data { month_a, month_b, rows } vindo de GET /api/reports/monthly
+ *  @param {object} meta { season?, doctor? } opcional para o cabeçalho
+ */
+export async function exportMonthlyReportPdf(data, meta = {}) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const logo = await getLogoDataUrl();
+  const pageW = doc.internal.pageSize.getWidth();
+
+  // ---------- Header custom (mais compacto para tabela larga) ----------
+  doc.setFillColor(...CLUB_NAVY);
+  doc.rect(0, 0, pageW, 26, "F");
+  doc.setFillColor(...CLUB_RED);
+  doc.rect(0, 26, pageW, 1.2, "F");
+  doc.setFillColor(...CLUB_YELLOW);
+  doc.rect(0, 27.2, pageW, 0.6, "F");
+  if (logo) { try { doc.addImage(logo, "PNG", 10, 4, 18, 18); } catch { /* skip */ } }
+  doc.setTextColor(255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("CLUBE DESPORTIVO TROFENSE", 32, 10);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text("Departamento Médico", 32, 15);
+  if (meta.season) doc.text(`Época ${meta.season}`, 32, 20);
+  if (meta.doctor) doc.text(`Dr. ${meta.doctor}`, 32, 24);
+
+  // Título grande centrado
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(255);
+  doc.text("Relatório Mensal · Avaliação Antropométrica", pageW / 2, 12, { align: "center" });
+  // Meses comparados a vermelho
+  const monthLabel = (m) => new Date(m + "-01").toLocaleDateString("pt-PT", { month: "long", year: "numeric" });
+  doc.setTextColor(...CLUB_YELLOW);
+  doc.setFontSize(11);
+  doc.text(
+    `${monthLabel(data.month_a)}  >>  ${monthLabel(data.month_b)}`,
+    pageW / 2, 20, { align: "center" }
+  );
+  // data topo direito
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(255);
+  doc.text(new Date().toLocaleString("pt-PT", { dateStyle: "long", timeStyle: "short" }), pageW - 10, 20, { align: "right" });
+
+  // ---------- Tabela ----------
+  const fmt = (v, suffix = "") => v == null ? "—" : `${v}${suffix}`;
+  const fmtDelta = (v, suffix = "") => {
+    if (v == null) return "—";
+    const sign = v > 0 ? "+" : "";
+    return `${sign}${v}${suffix}`;
+  };
+
+  const head = [[
+    { content: "Nome", rowSpan: 2, styles: { valign: "middle" } },
+    { content: "Alt.", rowSpan: 2, styles: { valign: "middle", halign: "center" } },
+    { content: "Peso (kg)", colSpan: 3, styles: { halign: "center" } },
+    { content: "Soma Pregas (mm)", colSpan: 2, styles: { halign: "center" } },
+    { content: "% Massa Gorda", colSpan: 2, styles: { halign: "center" } },
+    { content: "Massa Muscular (kg)", colSpan: 2, styles: { halign: "center" } },
+    { content: "PMC (cm)", colSpan: 2, styles: { halign: "center" } },
+  ], [
+    { content: "Ant.", styles: { halign: "center" } },
+    { content: "Atual", styles: { halign: "center" } },
+    { content: "Dif.", styles: { halign: "center" } },
+    { content: "Ant.", styles: { halign: "center" } },
+    { content: "Atual", styles: { halign: "center" } },
+    { content: "Ant.", styles: { halign: "center" } },
+    { content: "Atual", styles: { halign: "center" } },
+    { content: "Ant.", styles: { halign: "center" } },
+    { content: "Atual", styles: { halign: "center" } },
+    { content: "Ant.", styles: { halign: "center" } },
+    { content: "Atual", styles: { halign: "center" } },
+  ]];
+
+  const body = data.rows
+    .filter((r) => r.month_a.has_eval || r.month_b.has_eval)  // omite atletas sem qualquer avaliação nos 2 meses
+    .map((r) => {
+      const a = r.month_a, b = r.month_b;
+      const alturaM = r.altura_cm ? (r.altura_cm / 100).toFixed(2) : "—";
+      return [
+        r.nome,
+        alturaM,
+        fmt(a.peso, ""),
+        fmt(b.peso, ""),
+        { content: fmtDelta(r.delta.peso, ""), delta: r.delta.peso, styles: { fontStyle: "bold" } },
+        fmt(a.soma8),
+        fmt(b.soma8),
+        fmt(a.bf, "%"),
+        fmt(b.bf, "%"),
+        fmt(a.muscle_mass_kg),
+        fmt(b.muscle_mass_kg),
+        fmt(a.pmc),
+        fmt(b.pmc),
+      ];
+    });
+
+  // Totais (média) na última linha
+  const nums = (getter) => data.rows.map((r) => getter(r)).filter((v) => v != null);
+  const avg = (arr) => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null;
+  const alturas = nums((r) => r.altura_cm ? r.altura_cm / 100 : null);
+  const foot = [[
+    { content: "Média", styles: { fontStyle: "bold", fillColor: [235, 238, 245], textColor: CLUB_NAVY } },
+    { content: alturas.length ? (alturas.reduce((a, b) => a + b, 0) / alturas.length).toFixed(2) : "—", styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.month_a.peso))), styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.month_b.peso))), styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.delta.peso))), styles: { halign: "center", fillColor: [235, 238, 245], fontStyle: "bold" } },
+    { content: fmt(avg(nums((r) => r.month_a.soma8))), styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.month_b.soma8))), styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.month_a.bf)), "%"), styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.month_b.bf)), "%"), styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.month_a.muscle_mass_kg))), styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.month_b.muscle_mass_kg))), styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.month_a.pmc))), styles: { halign: "center", fillColor: [235, 238, 245] } },
+    { content: fmt(avg(nums((r) => r.month_b.pmc))), styles: { halign: "center", fillColor: [235, 238, 245] } },
+  ]];
+
+  autoTable(doc, {
+    head,
+    body,
+    foot,
+    startY: 34,
+    theme: "grid",
+    styles: { fontSize: 7.8, cellPadding: 1.6, lineColor: [220, 220, 225], lineWidth: 0.15, halign: "center" },
+    headStyles: { fillColor: CLUB_NAVY, textColor: 255, fontSize: 7.5, fontStyle: "bold", cellPadding: 2 },
+    footStyles: { fillColor: [235, 238, 245], textColor: CLUB_NAVY, fontStyle: "bold" },
+    columnStyles: {
+      0: { halign: "left", fontStyle: "bold", cellWidth: 40, textColor: CLUB_NAVY },
+    },
+    // Colorização das células Atual vs Ant baseada no delta (verde = melhoria, vermelho = agravamento)
+    didParseCell: (data) => {
+      if (data.section !== "body") return;
+      const row = body[data.row.index];
+      if (!row) return;
+      const idx = data.column.index;
+      const deltaPeso = row[4]?.delta;
+      // Peso: coluna 4 é o delta — pinta o delta
+      if (idx === 4 && deltaPeso != null) {
+        if (deltaPeso > 0.5) data.cell.styles.textColor = [220, 25, 40];   // ganhou peso — vermelho
+        else if (deltaPeso < -0.5) data.cell.styles.textColor = [16, 185, 129]; // perdeu peso — verde
+      }
+      // Massa gorda "atual" (col 8): compara com "anterior" (col 7) — mais MG = pior
+      if (idx === 8) {
+        const prev = parseFloat(String(row[7]).replace("%", ""));
+        const curr = parseFloat(String(row[8]).replace("%", ""));
+        if (!isNaN(prev) && !isNaN(curr)) {
+          if (curr - prev > 0.5) { data.cell.styles.fillColor = [253, 232, 235]; }
+          else if (curr - prev < -0.5) { data.cell.styles.fillColor = [220, 252, 231]; }
+        }
+      }
+      // Massa muscular "atual" (col 10): mais MM = melhor
+      if (idx === 10) {
+        const prev = parseFloat(row[9]);
+        const curr = parseFloat(row[10]);
+        if (!isNaN(prev) && !isNaN(curr)) {
+          if (curr - prev > 0.3) { data.cell.styles.fillColor = [220, 252, 231]; }
+          else if (curr - prev < -0.3) { data.cell.styles.fillColor = [253, 232, 235]; }
+        }
+      }
+    },
+    margin: { top: 34, left: 8, right: 8, bottom: 15 },
+  });
+
+  drawFooter(doc);
+  const filename = `trofense-relatorio-mensal-${data.month_a}-vs-${data.month_b}.pdf`;
+  doc.save(filename);
+  return { filename };
+}

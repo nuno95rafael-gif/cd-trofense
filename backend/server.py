@@ -1112,22 +1112,30 @@ async def backup_import(body: dict, user: dict = Depends(require_editor)):
 # ---------- Monthly report ----------
 @api.get("/reports/monthly")
 async def monthly_report(month_a: str, month_b: str, _: dict = Depends(get_current_user)):
-    """month format YYYY-MM. Compara médias de peso, MG, IMC entre 2 meses."""
-    athletes = await db.athletes.find({}, {"_id": 0}).to_list(1000)
+    """Compara a ÚLTIMA avaliação do mês A com a última do mês B.
+    Devolve para cada atleta: altura, peso, %MG (Reilly), IMC, Σ8 pregas,
+    massa muscular (Lee) e perímetro médio da coxa (PMC = média de coxaD/E).
+    """
+    athletes = await db.athletes.find({}, {"_id": 0}).sort("nome", 1).to_list(1000)
     rows = []
     for a in athletes:
-        eva = await _month_avg(a["id"], month_a)
-        evb = await _month_avg(a["id"], month_b)
+        snap_a = await _month_snapshot(a["id"], month_a)
+        snap_b = await _month_snapshot(a["id"], month_b)
         rows.append({
             "athlete_id": a["id"],
             "nome": a["nome"],
             "sexo": a["sexo"],
-            "month_a": eva,
-            "month_b": evb,
+            "posicao": a.get("posicao"),
+            "altura_cm": a.get("altura_cm"),
+            "month_a": snap_a,
+            "month_b": snap_b,
             "delta": {
-                "peso": _delta(eva.get("peso"), evb.get("peso")),
-                "bf": _delta(eva.get("bf"), evb.get("bf")),
-                "imc": _delta(eva.get("imc"), evb.get("imc")),
+                "peso": _delta(snap_a.get("peso"), snap_b.get("peso")),
+                "bf": _delta(snap_a.get("bf"), snap_b.get("bf")),
+                "imc": _delta(snap_a.get("imc"), snap_b.get("imc")),
+                "soma8": _delta(snap_a.get("soma8"), snap_b.get("soma8")),
+                "muscle_mass_kg": _delta(snap_a.get("muscle_mass_kg"), snap_b.get("muscle_mass_kg")),
+                "pmc": _delta(snap_a.get("pmc"), snap_b.get("pmc")),
             },
         })
     return {"month_a": month_a, "month_b": month_b, "rows": rows}
@@ -1139,32 +1147,57 @@ def _delta(a: Any, b: Any):
     return round(b - a, 2)
 
 
-async def _month_avg(aid: str, month: str) -> dict:
-    # month like "2026-01"
+def _month_bounds(month: str) -> tuple[str, str]:
+    """('2026-07-01', '2026-08-01')"""
     start = f"{month}-01"
-    end_year, end_month = map(int, month.split("-"))
-    end_month += 1
-    if end_month > 12:
-        end_month = 1
-        end_year += 1
-    end = f"{end_year:04d}-{end_month:02d}-01"
-    evs = await db.evaluations.find({
-        "athlete_id": aid, "date": {"$gte": start, "$lt": end}
-    }, {"_id": 0}).to_list(200)
-    weighins = await db.weighins.find({
-        "athlete_id": aid, "date": {"$gte": start, "$lt": end}
-    }, {"_id": 0}).to_list(500)
+    y, m = map(int, month.split("-"))
+    m += 1
+    if m > 12:
+        m = 1; y += 1
+    end = f"{y:04d}-{m:02d}-01"
+    return start, end
 
-    def avg(vals):
-        vals = [v for v in vals if v is not None]
-        return round(sum(vals) / len(vals), 2) if vals else None
 
-    bf = avg([e.get("metrics", {}).get("rw") for e in evs])
-    imc = avg([e.get("metrics", {}).get("imc") for e in evs])
-    peso_ev = [e.get("peso_kg") for e in evs]
-    peso_w = [w.get("peso_kg") for w in weighins]
-    peso = avg(peso_ev + peso_w)
-    return {"bf": bf, "imc": imc, "peso": peso, "n_eval": len(evs), "n_weighins": len(weighins)}
+async def _month_snapshot(aid: str, month: str) -> dict:
+    """Devolve a última avaliação do mês (ou null se não houver) + peso resultante
+    da última pesagem do mês (fallback ao peso da avaliação)."""
+    start, end = _month_bounds(month)
+    ev = await db.evaluations.find_one(
+        {"athlete_id": aid, "date": {"$gte": start, "$lt": end}},
+        {"_id": 0},
+        sort=[("date", -1)],
+    )
+    weighin = await db.weighins.find_one(
+        {"athlete_id": aid, "date": {"$gte": start, "$lt": end}},
+        {"_id": 0},
+        sort=[("date", -1)],
+    )
+    m = (ev or {}).get("metrics", {}) if ev else {}
+    perims = (ev or {}).get("perimetros", {}) if ev else {}
+    coxaD = perims.get("coxaD")
+    coxaE = perims.get("coxaE")
+    pmc = None
+    if coxaD is not None and coxaE is not None:
+        pmc = round((float(coxaD) + float(coxaE)) / 2, 1)
+    elif coxaD is not None:
+        pmc = float(coxaD)
+    elif coxaE is not None:
+        pmc = float(coxaE)
+    peso = None
+    if weighin and weighin.get("peso_kg") is not None:
+        peso = weighin["peso_kg"]
+    elif ev and ev.get("peso_kg") is not None:
+        peso = ev["peso_kg"]
+    return {
+        "date": ev.get("date") if ev else None,
+        "peso": peso,
+        "bf": m.get("rw"),
+        "imc": m.get("imc"),
+        "soma8": round(m["soma8"], 1) if m.get("soma8") is not None else None,
+        "muscle_mass_kg": m.get("muscle_mass_kg"),
+        "pmc": pmc,
+        "has_eval": ev is not None,
+    }
 
 
 # ---------- Startup ----------
