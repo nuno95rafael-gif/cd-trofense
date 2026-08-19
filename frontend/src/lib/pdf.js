@@ -72,10 +72,11 @@ function drawHeader(doc, subtitle, logoData) {
 /** Rodapé com paginação + assinatura do clube. Fino e discreto. */
 function drawFooter(doc) {
   const pages = doc.getNumberOfPages();
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
+    // pageH deve ser lido POR PÁGINA porque algumas podem ser landscape (fotos)
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
     // Linha navy suave no rodapé
     doc.setDrawColor(...CLUB_NAVY);
     doc.setLineWidth(0.3);
@@ -336,58 +337,82 @@ function drawLineChart(doc, title, points, x, y, w, h, unit = "") {
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...nav);
   doc.text(title, x, y - 2);
-  // Frame
-  doc.setDrawColor(200);
-  doc.setLineWidth(0.2);
-  doc.rect(x, y, w, h);
   if (!points || points.length < 2) {
+    doc.setDrawColor(200);
+    doc.setLineWidth(0.2);
+    doc.rect(x, y, w, h);
     doc.setFontSize(8);
     doc.setTextColor(150);
     doc.text("Dados insuficientes", x + w / 2, y + h / 2, { align: "center" });
     return;
   }
+  // Layout: axisW à esquerda para labels Y, chart à direita
+  const axisW = 12;
+  const chartX = x + axisW;
+  const chartW = w - axisW;
+
+  // Frame só do plot area
+  doc.setDrawColor(200);
+  doc.setLineWidth(0.2);
+  doc.rect(chartX, y, chartW, h);
+
+  // Domínio Y com padding proporcional (nunca abaixo de 0 para métricas +ve)
   const values = points.map((p) => p.v);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const pad = 4;
-  const innerW = w - pad * 2;
-  const innerH = h - pad * 2;
-  // Gridlines Y (3 linhas)
-  doc.setDrawColor(230);
-  for (let i = 1; i < 4; i++) {
-    const yy = y + pad + (innerH * i) / 4;
-    doc.line(x + pad, yy, x + w - pad, yy);
-  }
-  // Rótulos Y (min / max)
-  doc.setFontSize(7);
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const span = rawMax - rawMin;
+  const desiredSpan = Math.max(span * 1.3, Math.max(1, rawMax * 0.05));
+  const center = (rawMin + rawMax) / 2;
+  let yMin = center - desiredSpan / 2;
+  let yMax = center + desiredSpan / 2;
+  if (yMin < 0 && rawMin >= 0) { yMax += -yMin; yMin = 0; }
+  const range = yMax - yMin || 1;
+
+  const padX = 3;
+  const innerW = chartW - padX * 2;
+  const innerH = h;
+
+  // Gridlines Y + labels (4 divisões)
+  doc.setFontSize(6.5);
   doc.setTextColor(120);
-  doc.text(`${max.toFixed(1)}${unit}`, x + 2, y + pad + 2);
-  doc.text(`${min.toFixed(1)}${unit}`, x + 2, y + h - pad - 1);
-  // Linha
+  const divisions = 4;
+  for (let i = 0; i <= divisions; i++) {
+    const yy = y + (innerH * i) / divisions;
+    const val = yMax - (range * i) / divisions;
+    if (i > 0 && i < divisions) {
+      doc.setDrawColor(235);
+      doc.line(chartX, yy, chartX + chartW, yy);
+    }
+    // label à esquerda alinhado ao eixo, com fallback para inteiros
+    const formatted = Math.abs(val) >= 100 ? val.toFixed(0) : val.toFixed(1);
+    doc.text(`${formatted}${unit}`, chartX - 1.5, yy + 1, { align: "right" });
+  }
+
+  // Linha do gráfico
   doc.setDrawColor(...red);
   doc.setLineWidth(0.6);
   const step = points.length === 1 ? 0 : innerW / (points.length - 1);
   let prev = null;
-  points.forEach((p, i) => {
-    const px = x + pad + step * i;
-    const py = y + pad + innerH - ((p.v - min) / range) * innerH;
+  const coords = points.map((p, i) => {
+    const px = chartX + padX + step * i;
+    const py = y + innerH - ((p.v - yMin) / range) * innerH;
+    return [px, py];
+  });
+  coords.forEach(([px, py], i) => {
     if (prev) doc.line(prev[0], prev[1], px, py);
     prev = [px, py];
   });
   // Pontos
   doc.setFillColor(...red);
-  points.forEach((p, i) => {
-    const px = x + pad + step * i;
-    const py = y + pad + innerH - ((p.v - min) / range) * innerH;
-    doc.circle(px, py, 0.9, "F");
-  });
-  // Rótulos X (primeiro e último)
+  coords.forEach(([px, py]) => doc.circle(px, py, 0.9, "F"));
+
+  // Rótulos X — primeiro e último, DENTRO da margem inferior de 4mm
   doc.setFontSize(6.5);
   doc.setTextColor(120);
-  doc.text(points[0].d, x + pad, y + h + 3);
+  const xLabelY = y + h + 3;
+  doc.text(points[0].d, chartX + padX, xLabelY);
   if (points.length > 1) {
-    doc.text(points[points.length - 1].d, x + w - pad, y + h + 3, { align: "right" });
+    doc.text(points[points.length - 1].d, chartX + chartW - padX, xLabelY, { align: "right" });
   }
 }
 
@@ -546,7 +571,18 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
   }
 
   // Título da secção evolução — deslocado mais acima para não colidir com os títulos internos dos gráficos
-  const chartY = (doc.lastAutoTable?.finalY ?? kpiY) + 16;
+  let chartY = (doc.lastAutoTable?.finalY ?? kpiY) + 16;
+  const chartH = 36;
+  const pageH = doc.internal.pageSize.getHeight();
+  const footerMargin = 20; // reserva para "Desde 1930 · ..." e paginação
+  // Espaço total necessário: 6mm título + chartH + 4mm x-labels + 30mm objetivo (se aplicável)
+  const needsGoal = athlete.goal && ((athlete.goal.bf_target_pct != null) || (athlete.goal.imc_target != null));
+  const neededH = 6 + chartH + 4 + (needsGoal ? 30 : 0);
+  if (chartY + neededH > pageH - footerMargin) {
+    doc.addPage();
+    drawHeader(doc, `Relatório · ${athlete.nome}`, logo);
+    chartY = 40; // depois do header
+  }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...CLUB_NAVY);
@@ -554,7 +590,6 @@ export async function exportAthletePdf(athlete, evals, weighins, saveFile = true
   doc.setDrawColor(...CLUB_NAVY);
   doc.line(14, chartY - 4.5, 30, chartY - 4.5);
   const halfW = (pageW - 28 - 6) / 2;
-  const chartH = 36;
   const pesoPoints = [
     ...(evals.map((e) => ({ v: e.peso_kg, d: new Date(e.date).toLocaleDateString("pt-PT") })).filter((p) => p.v != null)),
     ...(weighins || []).map((w) => ({ v: w.peso_kg, d: new Date(w.date).toLocaleDateString("pt-PT") })).filter((p) => p.v != null),

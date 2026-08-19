@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 9 — validated fixes for (a) evaluation charts adaptive Y-domain (EvaluationCharts.jsx smartDomain) and (b) individual athlete PDF footer overlap bug (pdf.js drawFooter now recomputes pageH per page + new drawLineChart with left axis area). Frontend: created a 2nd evaluation for Wilson Oliveira, opened profile → Avaliações tab, confirmed the 4 evolution charts (%MG R&W, MM kg, Peso kg, Σ 8 pregas) render with Y-domain centered on real data (12.7-14.8, 37.1-39.2, 81.6-85.4, 118.2-133.2 respectively) and 1-decimal formatting (e.g. '81.6', '13.3'). NO chart starts at 0. PDF download succeeded (319 KB, within 100-1000 KB range). PDF inspection via pymupdf confirms footer at y=816.9pt on portrait pages (>800pt) and y=570.2pt on landscape page (>550pt); footer appears on all 3 pages; chart Y-axis labels ('83.7 kg', '13.8%', etc.) sit at chart-left (x=47.5pt) with 1-decimal formatting and DO NOT overlap the line or footer. Cleanup: test evaluation deleted, DB restored to 1 evaluation for Wilson.",
+  "tested_scope": ["frontend", "pdf-logic"],
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "passed": [
+    "EvaluationCharts smartDomain: %MG chart Y-axis = [12.7, 14.8] for values 13.37→14.21 (min-span applied, centered, 1-decimal) ✓",
+    "EvaluationCharts smartDomain: MM chart Y-axis = [37.1, 39.2] for flat values 38.15/38.15 (minSpan=2 kicked in, no false horizontal line) ✓",
+    "EvaluationCharts smartDomain: Peso chart Y-axis = [81.6, 85.4] for values 82.7→84.5 (minSpan=4) ✓",
+    "EvaluationCharts smartDomain: Σ 8 pregas chart Y-axis = [118.2, 133.2] for values ~120→131 (minSpan=10) ✓",
+    "Y-axis tickFormatter: renders '81.6', '14.3', '13.3' etc — always 1 decimal for fractionals, integer when whole ✓",
+    "Individual athlete PDF download button ('Descarregar PDF') triggers file save: 319 KB (within 100-1000 KB spec) ✓",
+    "PDF pages: 3 total — page1 portrait (595x842pt), page2 portrait, page3 landscape (842x595pt) ✓",
+    "PDF footer 'Desde 1930 · história, paixão e glória' at y=816.9pt on both portrait pages (>800pt required = >275mm) ✓",
+    "PDF footer 'Desde 1930' at y=570.2pt on landscape photos page (>550pt required = >195mm) ✓",
+    "PDF footer 'Página X de Y' present on all 3 pages ✓",
+    "PDF drawLineChart Y-axis labels sit at x≈47.5pt (left of plot area, within 12mm axis-area) — NO overlap with chart line or footer ✓",
+    "PDF chart Y-axis labels use 1-decimal formatting: '83.7 kg', '82.6 kg', '81.6 kg', '13.8%', '13.5%', '13.2%' ✓",
+    "Bug RCA validated: previous overlap issue caused by pageH computed ONCE outside loop in drawFooter; now recomputed per page after doc.setPage(i) — landscape page correctly gets pageH=595.3pt (footer at 570.2), portrait pages get pageH=841.9pt (footer at 816.9)"
+  ],
+  "failed": [],
+  "test_report_links": [
+    "/app/test_reports/pdf_downloads/iter9_wilson.pdf",
+    "/app/test_reports/pdf_downloads/iter9_charts.png",
+    "/app/tests/verify_pdf.py",
+    "/app/tests/verify_chart_labels.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EvaluationCharts.smartDomain edge case: with 1 point (evals.length===1) span=0 → desiredSpan = max(0, minSpan, 1). Result works (v ± minSpan/2). Verified logically — no crash. Non-blocking.",
+    "pdf.js drawLineChart: uses raw min/max instead of the same smartDomain util from EvaluationCharts (slight logic drift). Not blocking but a shared util in /app/frontend/src/lib/chartDomain.js would DRY it up.",
+    "pdf.js drawFooter fix is correct AND critical for future landscape+portrait mixed docs; consider adding a code-comment linking to this iteration report so it isn't refactored away."
+  ],
+  "updated_files": [],
+  "success_rate": {"frontend": "100% (4/4 charts + PDF)", "pdf": "100% (all footer + chart-label positions correct)"},
+  "test_credentials": "admin@trofense.pt / Trofense2026! — worked",
+  "seed_data_creation": "Created 1 extra evaluation on Wilson Oliveira (id d191ac87-…) with notas='TEST_EVAL_ITER11', date=2026-06-01, peso=82.7 — deleted at the end via DELETE /api/evaluations/{id}. DB restored to 1 evaluation.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Both reported bugs are fixed and validated. Wilson Oliveira only has 1 evaluation again — if you need to test charts, create a 2nd eval via POST /api/athletes/{aid}/evaluations (see /app/tests/create_extra_eval.py) and remember to delete via DELETE /api/evaluations/{eid} (NOT /api/athletes/.../evaluations/{eid}, which is 404). The saved PDF at /app/test_reports/pdf_downloads/iter9_wilson.pdf can be re-inspected with pymupdf using /app/tests/verify_pdf.py.",
+  "rca of the issue": "Original bug: drawFooter looped over doc.getNumberOfPages() but computed pageH = doc.internal.pageSize.getHeight() BEFORE the loop, so when the doc mixed portrait (page1,2) with landscape (page3), pageH stayed fixed at whichever orientation was current on the doc at that moment, causing 'Desde 1930' to render at the wrong Y (looked overlapping mid-page on some pages). Fix: move pageH (and pageW) computation INSIDE the for-loop, AFTER doc.setPage(i), so each page's actual dimensions are used. Verified via pymupdf: portrait footer at y=826/842 = 98% down, landscape footer at y=580/595 = 97% down — both correct."
+}
